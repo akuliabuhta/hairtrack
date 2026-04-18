@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,15 +9,26 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import {
+  useJournal,
+  usePhotos,
+  useProcedureLogs,
+  useProcedures,
+} from '@/contexts/data-context';
+import { dayKey } from '@/lib/uuid';
+import { persistPhoto } from '@/lib/photos';
+import { PROCEDURE_KIND_META } from '@/lib/types';
 
 const RU_MONTHS = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
 ];
-// Russian short letters Mon..Sun: Пн Вт Ср Чт Пт Сб Вс
 const RU_WEEKDAY_MON_FIRST = ['П', 'В', 'С', 'Ч', 'П', 'С', 'В'];
 
 function isSameDay(a: Date, b: Date): boolean {
@@ -29,28 +41,28 @@ function isSameDay(a: Date, b: Date): boolean {
 
 function getDayLabel(date: Date, today: Date): string {
   if (isSameDay(date, today)) return 'Сегод…';
-  const dow = date.getDay(); // 0 Sun..6 Sat
-  const monIdx = (dow + 6) % 7; // 0 Mon..6 Sun
+  const dow = date.getDay();
+  const monIdx = (dow + 6) % 7;
   return RU_WEEKDAY_MON_FIRST[monIdx];
 }
-
-type Procedure = {
-  id: string;
-  name: string;
-  dose: string;
-  frequencyPerDay: number;
-  doneToday: number;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-};
 
 export default function DailyScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
-  // Pinned to today's date from the userContext (2026-04-19) so the demo matches the screenshots.
-  const today = useMemo(() => new Date(2026, 3, 19), []);
-  const [selectedDate, setSelectedDate] = useState<Date>(today);
+  const router = useRouter();
 
-  // Build calendar strip ±15 days
+  const today = useMemo(() => new Date(), []);
+  const [selectedDate, setSelectedDate] = useState<Date>(today);
+  const selectedDayKey = dayKey(selectedDate);
+
+  const { procedures } = useProcedures();
+  const { logs, tickProcedure } = useProcedureLogs(selectedDayKey);
+  const { photos, addPhoto } = usePhotos();
+  const { journal } = useJournal();
+
+  const dayPhotos = photos.filter((p) => p.date === selectedDayKey);
+  const dayJournal = journal.filter((j) => j.date === selectedDayKey);
+
   const strip = useMemo(() => {
     const arr: Date[] = [];
     for (let i = -15; i <= 15; i++) {
@@ -61,25 +73,63 @@ export default function DailyScreen() {
     return arr;
   }, [today]);
 
-  const [procedures, setProcedures] = useState<Procedure[]>([
-    {
-      id: '1',
-      name: 'Миноксидил',
-      dose: '10 распыления',
-      frequencyPerDay: 2,
-      doneToday: 0,
-      icon: 'spray-bottle',
-    },
-  ]);
+  const launchPicker = async (source: 'camera' | 'library') => {
+    const perm =
+      source === 'camera'
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert(
+        'Нет разрешения',
+        source === 'camera'
+          ? 'Разрешите доступ к камере в настройках.'
+          : 'Разрешите доступ к фотогалерее в настройках.',
+      );
+      return;
+    }
+    const result =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            quality: 0.8,
+            exif: false,
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.8,
+            allowsMultipleSelection: false,
+            exif: false,
+          });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    const persisted = await persistPhoto(asset.uri);
+    await addPhoto({
+      uri: persisted.uri,
+      date: selectedDayKey,
+      zone: 'other',
+      width: asset.width,
+      height: asset.height,
+    });
+  };
 
-  const tickProcedure = (id: string) => {
-    setProcedures((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, doneToday: p.doneToday >= p.frequencyPerDay ? 0 : p.doneToday + 1 }
-          : p,
-      ),
+  const handleAddPhoto = () => {
+    Alert.alert(
+      'Добавить фото',
+      'Откуда взять снимок?',
+      [
+        { text: 'Сделать снимок', onPress: () => launchPicker('camera') },
+        { text: 'Выбрать из галереи', onPress: () => launchPicker('library') },
+        { text: 'Отмена', style: 'cancel' },
+      ],
+      { cancelable: true },
     );
+  };
+
+  const handleAddProcedure = () => {
+    router.push('/treatment-form');
+  };
+
+  const handleAddJournal = () => {
+    router.push({ pathname: '/journal-form', params: { date: selectedDayKey } });
   };
 
   return (
@@ -146,69 +196,128 @@ export default function DailyScreen() {
           {/* Procedures */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitleWhite}>Процедуры</Text>
-            <Pressable style={styles.plusBtn}>
+            <Pressable style={styles.plusBtn} onPress={handleAddProcedure}>
               <Ionicons name="add" size={22} color="#FFF" />
             </Pressable>
           </View>
 
-          {procedures.map((p) => (
-            <Pressable
-              key={p.id}
-              onPress={() => tickProcedure(p.id)}
-              style={styles.itemCard}>
-              <View style={[styles.itemIcon, { backgroundColor: '#FFF' }]}>
-                <MaterialCommunityIcons name={p.icon} size={22} color="#1A1A1A" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemTitle}>{p.name}</Text>
-                <Text style={styles.itemSubtitle}>{p.dose}</Text>
-              </View>
-              <View style={styles.checkRow}>
-                {Array.from({ length: p.frequencyPerDay }).map((_, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.checkCircle,
-                      {
-                        borderColor: '#1A1A1A',
-                        backgroundColor: i < p.doneToday ? '#1A1A1A' : 'transparent',
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
-            </Pressable>
-          ))}
+          {procedures.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                Нажмите «плюс», чтобы добавить первую процедуру (миноксидил, финастерид и т.д.).
+              </Text>
+            </View>
+          ) : (
+            procedures.map((p) => {
+              const log = logs.find((l) => l.procedureId === p.id);
+              const done = log?.count ?? 0;
+              const meta = PROCEDURE_KIND_META[p.kind];
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => tickProcedure(p.id, selectedDayKey)}
+                  style={styles.itemCard}>
+                  <View style={[styles.itemIcon, { backgroundColor: '#FFF' }]}>
+                    <MaterialCommunityIcons
+                      name={meta.icon as any}
+                      size={22}
+                      color="#1A1A1A"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemTitle}>{p.name}</Text>
+                    <Text style={styles.itemSubtitle}>
+                      {p.amount} {p.unit}
+                    </Text>
+                  </View>
+                  <View style={styles.checkRow}>
+                    {Array.from({ length: p.frequencyPerDay }).map((_, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.checkCircle,
+                          {
+                            borderColor: '#1A1A1A',
+                            backgroundColor: i < done ? '#1A1A1A' : 'transparent',
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </Pressable>
+              );
+            })
+          )}
 
           <View style={styles.divider} />
 
           {/* Photos */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitleWhite}>Фотографии</Text>
-            <Pressable style={styles.plusBtn}>
+            <Pressable style={styles.plusBtn} onPress={handleAddPhoto}>
               <Ionicons name="add" size={22} color="#FFF" />
             </Pressable>
           </View>
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>
-              Нажмите кнопку «плюс», чтобы добавить сегодняшние фото прогресса.
-            </Text>
-          </View>
+          {dayPhotos.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                Нажмите «плюс», чтобы добавить сегодняшние фото прогресса.
+              </Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.photoRow}>
+                {dayPhotos.map((p) => (
+                  <Pressable
+                    key={p.id}
+                    onPress={() =>
+                      router.push({ pathname: '/photo-detail', params: { id: p.id } })
+                    }>
+                    <Image
+                      source={{ uri: p.uri }}
+                      style={styles.photoThumb}
+                      contentFit="cover"
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          )}
 
           <View style={styles.divider} />
 
           {/* Journal */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitleWhite}>Журнал</Text>
-            <Pressable style={styles.plusBtn}>
+            <Pressable style={styles.plusBtn} onPress={handleAddJournal}>
               <Ionicons name="add" size={22} color="#FFF" />
             </Pressable>
           </View>
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>
-              Нажмите кнопку «плюс», чтобы записать заметки за сегодня.
-            </Text>
-          </View>
+          {dayJournal.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>
+                Нажмите «плюс», чтобы записать заметки за сегодня.
+              </Text>
+            </View>
+          ) : (
+            dayJournal.map((entry) => (
+              <Pressable
+                key={entry.id}
+                onPress={() =>
+                  router.push({ pathname: '/journal-form', params: { id: entry.id } })
+                }
+                style={styles.journalCard}>
+                <Text style={styles.journalText} numberOfLines={4}>
+                  {entry.text}
+                </Text>
+                {entry.symptoms && entry.symptoms.length > 0 && (
+                  <Text style={styles.journalSymptoms}>
+                    {entry.symptoms.join(' · ')}
+                  </Text>
+                )}
+              </Pressable>
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -224,37 +333,13 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     paddingBottom: Spacing.md,
   },
-  monthName: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  monthYear: {
-    fontSize: 28,
-    fontWeight: '400',
-  },
-  stripContent: {
-    paddingHorizontal: Spacing.lg,
-    gap: Spacing.md,
-  },
-  dayCell: {
-    alignItems: 'center',
-    width: 52,
-  },
-  dayNum: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 6,
-  },
-  dayCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    marginBottom: 6,
-  },
-  dayLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  monthName: { fontSize: 28, fontWeight: '700' },
+  monthYear: { fontSize: 28, fontWeight: '400' },
+  stripContent: { paddingHorizontal: Spacing.lg, gap: Spacing.md },
+  dayCell: { alignItems: 'center', width: 52 },
+  dayNum: { fontSize: 16, fontWeight: '500', marginBottom: 6 },
+  dayCircle: { width: 44, height: 44, borderRadius: 22, marginBottom: 6 },
+  dayLabel: { fontSize: 13, fontWeight: '500' },
   bluePanel: {
     marginTop: Spacing.xl,
     marginHorizontal: Spacing.lg,
@@ -268,11 +353,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     marginTop: Spacing.sm,
   },
-  sectionTitleWhite: {
-    color: '#FFF',
-    fontSize: 28,
-    fontWeight: '700',
-  },
+  sectionTitleWhite: { color: '#FFF', fontSize: 28, fontWeight: '700' },
   plusBtn: {
     width: 36,
     height: 36,
@@ -288,6 +369,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.lg,
     padding: Spacing.md,
     gap: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   itemIcon: {
     width: 44,
@@ -296,39 +378,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#11181C',
-  },
-  itemSubtitle: {
-    fontSize: 14,
-    color: '#6B6F76',
-    marginTop: 2,
-  },
-  checkRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  checkCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.5,
-  },
+  itemTitle: { fontSize: 17, fontWeight: '600', color: '#11181C' },
+  itemSubtitle: { fontSize: 14, color: '#6B6F76', marginTop: 2 },
+  checkRow: { flexDirection: 'row', gap: Spacing.sm },
+  checkCircle: { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
   divider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.25)',
     marginVertical: Spacing.lg,
   },
-  emptyCard: {
+  emptyCard: { backgroundColor: '#F2F2F7', borderRadius: Radius.lg, padding: Spacing.lg },
+  emptyText: { fontSize: 15, color: '#11181C', lineHeight: 21 },
+  photoRow: { flexDirection: 'row', gap: Spacing.sm },
+  photoThumb: {
+    width: 96,
+    height: 96,
+    borderRadius: Radius.md,
+    backgroundColor: '#FFF',
+  },
+  journalCard: {
     backgroundColor: '#F2F2F7',
     borderRadius: Radius.lg,
     padding: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
-  emptyText: {
-    fontSize: 15,
-    color: '#11181C',
-    lineHeight: 21,
+  journalText: { fontSize: 15, color: '#11181C', lineHeight: 21 },
+  journalSymptoms: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#6B6F76',
   },
 });

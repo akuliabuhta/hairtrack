@@ -1,15 +1,35 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useProfile, useReady } from '@/contexts/data-context';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
+  const ready = useReady();
+  const { profile } = useProfile();
+
+  if (!ready) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: palette.background,
+        }}>
+        <ActivityIndicator color={palette.accent} />
+      </View>
+    );
+  }
+  if (!profile.onboardingCompleted) {
+    return <Redirect href="/onboarding" />;
+  }
 
   return (
     <Tabs

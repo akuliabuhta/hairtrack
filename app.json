@@ -10,7 +10,12 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hairtrack.app"
+      "bundleIdentifier": "com.hairtrack.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Hairtrack использует камеру, чтобы делать фото прогресса роста волос.",
+        "NSPhotoLibraryUsageDescription": "Hairtrack читает фото из галереи, чтобы добавлять их к вашему дневнику.",
+        "NSPhotoLibraryAddUsageDescription": "Hairtrack может сохранять фото прогресса в вашу галерею."
+      }
     },
     "android": {
       "package": "com.hairtrack.app",
@@ -21,7 +26,13 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "output": "static",
@@ -39,6 +50,21 @@
           "dark": {
             "backgroundColor": "#0B0B0F"
           }
+        }
+      ],
+      "expo-sqlite",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hairtrack читает фото из галереи, чтобы добавлять их к вашему дневнику.",
+          "cameraPermission": "Hairtrack использует камеру, чтобы делать фото прогресса роста волос."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#002FCC"
         }
       ]
     ],
