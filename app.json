@@ -20,7 +20,7 @@
     "android": {
       "package": "com.hairtrack.app",
       "adaptiveIcon": {
-        "backgroundColor": "#002FCC",
+        "backgroundColor": "#059669",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -64,7 +64,7 @@
       [
         "expo-notifications",
         {
-          "color": "#002FCC"
+          "color": "#059669"
         }
       ]
     ],

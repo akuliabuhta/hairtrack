@@ -31,7 +31,6 @@ import { dayKey } from '@/lib/uuid';
 const GENDERS: { id: Gender; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { id: 'male', label: 'Мужской', icon: 'gender-male' },
   { id: 'female', label: 'Женский', icon: 'gender-female' },
-  { id: 'other', label: 'Другой', icon: 'gender-non-binary' },
 ];
 
 const STEPS = ['welcome', 'gender', 'goals', 'notify'] as const;

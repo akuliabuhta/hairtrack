@@ -77,6 +77,15 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="articles"
+        options={{
+          title: 'Статьи',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="book-open-variant" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="ai-analysis"
         options={{
           title: 'ИИ-анализ',

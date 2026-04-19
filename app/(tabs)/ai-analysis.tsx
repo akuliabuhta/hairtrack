@@ -82,9 +82,11 @@ export default function AIAnalysisScreen() {
         </Text>
 
         {/* Coming soon badge */}
-        <View style={[styles.badge, { backgroundColor: palette.accent }]}>
-          <MaterialCommunityIcons name="clock-outline" size={14} color="#FFF" />
-          <Text style={styles.badgeText}>Скоро в v1.1</Text>
+        <View style={[styles.badge, { backgroundColor: palette.secondarySoft }]}>
+          <MaterialCommunityIcons name="clock-outline" size={14} color={palette.secondary} />
+          <Text style={[styles.badgeText, { color: palette.secondary }]}>
+            Скоро в v1.1
+          </Text>
         </View>
 
         <View style={[styles.featureCard, { backgroundColor: palette.surface }]}>
@@ -145,9 +147,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
   badgeText: {
-    color: '#FFF',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   featureCard: {
     width: '100%',

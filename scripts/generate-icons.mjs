@@ -16,7 +16,7 @@ import sharp from 'sharp';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = resolve(__dirname, '../assets/images');
 
-const BRAND = '#002FCC';
+const BRAND = '#059669';
 const ON_BRAND = '#FFFFFF';
 
 function logo({ bg, fg, withBg = true, size = 1024, padding = 0.16 }) {

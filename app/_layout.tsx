@@ -38,6 +38,10 @@ export default function RootLayout() {
                 name="photo-detail"
                 options={{ presentation: 'modal', title: 'Фото' }}
               />
+              <Stack.Screen
+                name="article-detail"
+                options={{ title: 'Статья' }}
+              />
             </Stack>
             <StatusBar style="auto" />
           </DataProvider>
