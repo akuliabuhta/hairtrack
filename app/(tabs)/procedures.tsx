@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
+import { GuestModeBanner } from '@/components/ui/guest-mode-banner';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -81,6 +82,7 @@ export default function ProceduresScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}>
+        <GuestModeBanner />
         <Text style={[styles.title, { color: palette.text }]}>Расписание лечения</Text>
 
         {procedures.length === 0 ? (

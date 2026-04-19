@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
 import { BrandMark } from '@/components/brand-mark';
+import { GuestModeBanner } from '@/components/ui/guest-mode-banner';
 import { Colors, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -209,6 +210,10 @@ export default function DailyScreen() {
             </Text>
           </View>
           <BrandMark size={44} shape="tile" borderRadius={22} />
+        </View>
+
+        <View style={{ paddingHorizontal: Spacing.lg }}>
+          <GuestModeBanner />
         </View>
 
         {/* Month picker */}
