@@ -98,7 +98,7 @@ export default function DailyScreen() {
 
   const { procedures } = useProcedures();
   const { logs, allLogs, tickProcedure } = useProcedureLogs(selectedDayKey);
-  const { photos, addPhoto } = usePhotos();
+  const { photos, addPhoto, resolveUri } = usePhotos();
   const { journal } = useJournal();
 
   const dayPhotos = photos.filter((p) => p.date === selectedDayKey);
@@ -466,19 +466,22 @@ export default function DailyScreen() {
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.photoRow}>
-                {dayPhotos.map((p) => (
-                  <Pressable
-                    key={p.id}
-                    onPress={() =>
-                      router.push({ pathname: '/photo-detail', params: { id: p.id } })
-                    }>
-                    <Image
-                      source={{ uri: p.uri }}
-                      style={styles.photoThumb}
-                      contentFit="cover"
-                    />
-                  </Pressable>
-                ))}
+                {dayPhotos.map((p) => {
+                  const uri = resolveUri(p);
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={() =>
+                        router.push({ pathname: '/photo-detail', params: { id: p.id } })
+                      }>
+                      <Image
+                        source={uri ? { uri } : undefined}
+                        style={styles.photoThumb}
+                        contentFit="cover"
+                      />
+                    </Pressable>
+                  );
+                })}
               </View>
             </ScrollView>
           )}

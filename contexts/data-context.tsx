@@ -28,6 +28,7 @@ import {
   requestNotificationPermissions,
 } from '@/lib/notifications';
 import { deletePhotoFile } from '@/lib/photos';
+import { getPhotoViewUrls, uploadPhotoToCloud } from '@/lib/photo-upload';
 import * as Cloud from '@/lib/sync';
 import type {
   DayKey,
@@ -48,6 +49,12 @@ type State = {
   photos: Photo[];
   journal: JournalEntry[];
   profile: UserProfile;
+  /**
+   * Signed R2 view URLs keyed by storageKey. Refreshed periodically so
+   * components can render cloud-only photos (e.g. on a new device after
+   * sign-in) without each one fetching its own URL.
+   */
+  photoUrls: Record<string, string>;
 };
 
 type Actions = {
@@ -84,6 +91,7 @@ const initialState: State = {
   photos: [],
   journal: [],
   profile: DEFAULT_PROFILE,
+  photoUrls: {},
 };
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -162,6 +170,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         photos,
         journal,
         profile,
+        photoUrls: {},
       });
     })();
     return () => {
@@ -204,14 +213,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           snapshot.profile.onboardingCompleted || state.profile.onboardingCompleted,
       };
 
-      setState({
+      setState((prev) => ({
         ready: true,
         procedures: mergedProcedures,
         procedureLogs: mergedLogs,
         journal: mergedJournal,
         photos: mergedPhotos,
         profile: mergedProfile,
-      });
+        photoUrls: prev.photoUrls, // keep any URLs we've already resolved
+      }));
 
       // Push local rows that the cloud doesn't yet know about.
       const remoteProcIds = new Set(snapshot.procedures.map((p) => p.id));
@@ -250,6 +260,49 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // every local mutation. state.* in the push-loop is read on latest via
     // closure capture, which is fine as a best-effort bootstrap.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // ---- Resolve R2 view URLs ---------------------------------------------
+  // Photos that have a storage_key but no usable local URI need a signed
+  // GET URL to render (e.g. photo uploaded from another device, or the
+  // original file got evicted from cache). Batch-resolve them and keep
+  // the map in state. Re-runs every 45 minutes so URLs never expire
+  // while the app is open.
+  const missingUrlKeys = useMemo(() => {
+    const need: string[] = [];
+    for (const p of state.photos) {
+      if (!p.storageKey) continue;
+      if (state.photoUrls[p.storageKey]) continue;
+      need.push(p.storageKey);
+    }
+    return need;
+  }, [state.photos, state.photoUrls]);
+
+  useEffect(() => {
+    if (!userId) return;
+    if (missingUrlKeys.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const fresh = await getPhotoViewUrls(missingUrlKeys);
+      if (cancelled) return;
+      if (Object.keys(fresh).length === 0) return;
+      setState((prev) => ({ ...prev, photoUrls: { ...prev.photoUrls, ...fresh } }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, missingUrlKeys]);
+
+  // Periodic refresh (45 min) so URLs don't expire while the app is up.
+  useEffect(() => {
+    if (!userId) return;
+    const id = setInterval(
+      () => {
+        setState((prev) => ({ ...prev, photoUrls: {} })); // force re-resolve
+      },
+      45 * 60 * 1000,
+    );
+    return () => clearInterval(id);
   }, [userId]);
 
   // ---- Procedure helpers -----------------------------------------------
@@ -382,8 +435,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         return { ...prev, photos: nextList };
       });
       await PhotosStore.save(nextList);
-      // Photo metadata goes up now; actual bytes go to R2 in a later commit.
-      if (userId) Cloud.pushPhoto(photo, userId);
+      // Push metadata first so the photo is known to the cloud even if
+      // the upload is slow / offline. The `storage_key` stays null until
+      // the R2 upload finishes.
+      if (userId) {
+        Cloud.pushPhoto(photo, userId);
+        // Fire-and-forget R2 upload. On success we patch the photo
+        // record with `storageKey`, re-save locally, and re-push to
+        // Supabase so every device can now render the image from R2.
+        uploadPhotoToCloud(photo.id, photo.uri).then(async (result) => {
+          if (!result.ok) return;
+          const updated: Photo = { ...photo, storageKey: result.storageKey };
+          let patched: Photo[] = [];
+          setState((prev) => {
+            patched = prev.photos.map((p) => (p.id === photo.id ? updated : p));
+            return { ...prev, photos: patched };
+          });
+          await PhotosStore.save(patched);
+          Cloud.pushPhoto(updated, userId);
+        });
+      }
       return photo;
     },
     [userId],
@@ -546,8 +617,21 @@ export function useProcedureLogs(day: DayKey = dayKey()) {
 }
 
 export function usePhotos() {
-  const { photos, addPhoto, deletePhoto } = useData();
-  return { photos, addPhoto, deletePhoto };
+  const { photos, photoUrls, addPhoto, deletePhoto } = useData();
+  /**
+   * Return the best URI we have for a photo right now.
+   *  - Local file/blob URIs are preferred (no network hit).
+   *  - Otherwise a signed R2 URL if we've resolved one.
+   *  - Otherwise null; callers can show a placeholder.
+   */
+  const resolveUri = (p: Photo): string | null => {
+    if (p.uri && (p.uri.startsWith('file://') || p.uri.startsWith('blob:') || p.uri.startsWith('data:') || p.uri.startsWith('http'))) {
+      return p.uri;
+    }
+    if (p.storageKey && photoUrls[p.storageKey]) return photoUrls[p.storageKey];
+    return null;
+  };
+  return { photos, addPhoto, deletePhoto, photoUrls, resolveUri };
 }
 
 export function useJournal() {

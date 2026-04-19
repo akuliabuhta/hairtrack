@@ -47,7 +47,7 @@ export default function ProgressScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const router = useRouter();
-  const { photos } = usePhotos();
+  const { photos, resolveUri } = usePhotos();
   const [zoneFilter, setZoneFilter] = useState<'all' | PhotoZone>('all');
 
   const filtered = useMemo(() => {
@@ -141,8 +141,8 @@ export default function ProgressScreen() {
               {beforePhoto.date} → {afterPhoto.date} · {diffDays(beforePhoto.date, afterPhoto.date)} дней
             </Text>
             <BeforeAfterSlider
-              beforeUri={beforePhoto.uri}
-              afterUri={afterPhoto.uri}
+              beforeUri={resolveUri(beforePhoto) ?? ''}
+              afterUri={resolveUri(afterPhoto) ?? ''}
             />
           </View>
         )}
@@ -150,19 +150,26 @@ export default function ProgressScreen() {
         {/* Grid */}
         <Text style={[styles.subheading, { color: palette.text }]}>Все фото</Text>
         <View style={styles.grid}>
-          {filtered.map((p) => (
-            <Pressable
-              key={p.id}
-              onPress={() =>
-                router.push({ pathname: '/photo-detail', params: { id: p.id } })
-              }
-              style={styles.tileWrap}>
-              <Image source={{ uri: p.uri }} style={styles.tile} contentFit="cover" />
-              <View style={styles.tileBadge}>
-                <Text style={styles.tileBadgeText}>{p.date.slice(5)}</Text>
-              </View>
-            </Pressable>
-          ))}
+          {filtered.map((p) => {
+            const uri = resolveUri(p);
+            return (
+              <Pressable
+                key={p.id}
+                onPress={() =>
+                  router.push({ pathname: '/photo-detail', params: { id: p.id } })
+                }
+                style={styles.tileWrap}>
+                <Image
+                  source={uri ? { uri } : undefined}
+                  style={styles.tile}
+                  contentFit="cover"
+                />
+                <View style={styles.tileBadge}>
+                  <Text style={styles.tileBadgeText}>{p.date.slice(5)}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>

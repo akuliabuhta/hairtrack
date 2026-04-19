@@ -32,7 +32,7 @@ export default function PhotoDetail() {
   const palette = Colors[colorScheme];
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { photos, addPhoto, deletePhoto } = usePhotos();
+  const { photos, addPhoto, deletePhoto, resolveUri } = usePhotos();
 
   const photo = useMemo(() => photos.find((p) => p.id === id), [photos, id]);
   const [zone, setZone] = useState<PhotoZone>(photo?.zone ?? 'other');
@@ -94,11 +94,16 @@ export default function PhotoDetail() {
         }}
       />
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
-        <Image
-          source={{ uri: photo.uri }}
-          style={styles.image}
-          contentFit="cover"
-        />
+        {(() => {
+          const uri = resolveUri(photo);
+          return (
+            <Image
+              source={uri ? { uri } : undefined}
+              style={styles.image}
+              contentFit="cover"
+            />
+          );
+        })()}
 
         <View style={styles.body}>
           <Text style={[styles.dateText, { color: palette.textSecondary }]}>

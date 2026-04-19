@@ -123,7 +123,11 @@ function photoToRow(p: Photo, userId: string): Row {
   return {
     id: p.id,
     user_id: userId,
-    storage_key: null, // filled in by the R2 upload layer later
+    // Once the R2 upload succeeds we fill this in; until then the row
+    // has a null storage_key and a non-null local_uri — other devices
+    // can still see metadata but won't be able to render the image
+    // until the original device uploads it.
+    storage_key: p.storageKey ?? null,
     local_uri: p.uri,
     log_date: p.date,
     zone: p.zone,
@@ -135,9 +139,14 @@ function photoToRow(p: Photo, userId: string): Row {
 }
 
 function rowToPhoto(r: Row): Photo {
+  const storageKey = (r.storage_key as string | null) ?? undefined;
   return {
     id: String(r.id),
-    uri: String(r.local_uri ?? r.storage_key ?? ''),
+    // Prefer a usable local URI if the cloud row carries one (same device),
+    // otherwise fall back to an empty string — the view layer resolves the
+    // real viewable URL from `storageKey` via photo-view-urls when needed.
+    uri: String(r.local_uri ?? ''),
+    storageKey,
     date: String(r.log_date),
     zone: r.zone as PhotoZone,
     note: (r.note as string | null) ?? undefined,

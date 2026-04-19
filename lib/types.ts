@@ -66,7 +66,19 @@ export type ProcedureLog = {
 
 export type Photo = {
   id: string;
-  uri: string; // file:// path inside app document dir
+  /**
+   * Local URI: `file://…` on native, `blob:` or `data:` on web.
+   * Always valid on the device where the photo was captured; may be
+   * stale (cache cleared) on subsequent boots — in that case we fall
+   * back to the cloud copy via `storageKey`.
+   */
+  uri: string;
+  /**
+   * Cloudflare R2 object key, e.g. `users/<uid>/<photoId>.jpg`.
+   * Populated once the upload succeeds; absent while the photo is
+   * still local-only.
+   */
+  storageKey?: string;
   thumbUri?: string; // not used yet, future optimisation
   date: DayKey;
   zone: PhotoZone;
