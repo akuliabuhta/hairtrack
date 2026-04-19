@@ -24,7 +24,7 @@ import {
 } from '@/contexts/data-context';
 import { dayKey, parseDayKey } from '@/lib/uuid';
 import { persistPhoto } from '@/lib/photos';
-import { PROCEDURE_KIND_META } from '@/lib/types';
+import { GOAL_META, PROCEDURE_KIND_META } from '@/lib/types';
 import { showAlert } from '@/lib/alert';
 
 const RU_MONTHS = [
@@ -403,6 +403,14 @@ export default function DailyScreen() {
                     </Text>
                     <Text style={[styles.procedureMeta, { color: palette.textSecondary }]}>
                       {p.amount} {p.unit}
+                      {p.targetZones && p.targetZones.length > 0 && (
+                        <Text style={{ color: palette.textMuted }}>
+                          {'  ·  '}
+                          {p.targetZones
+                            .map((z) => GOAL_META[z].label.toLowerCase())
+                            .join(', ')}
+                        </Text>
+                      )}
                     </Text>
                   </View>
                   <View style={styles.dots}>

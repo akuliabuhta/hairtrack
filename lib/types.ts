@@ -40,6 +40,13 @@ export type Procedure = {
    * are rendered as a small badge.
    */
   kinds: ProcedureKind[];
+  /**
+   * Which body zones this treatment is applied to. Reuses the onboarding
+   * Goal set so a user who picked "head + beard" can apply the same
+   * minoxidil to both areas and see them tagged on every procedure card.
+   * Empty array = not zone-specific (e.g. a vitamin).
+   */
+  targetZones: Goal[];
   amount: number; // 10
   unit: string; // "распыления", "мг", "капель", "минут"
   frequencyPerDay: number; // 1, 2, 3

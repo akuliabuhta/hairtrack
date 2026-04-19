@@ -15,7 +15,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useProcedures } from '@/contexts/data-context';
-import { PROCEDURE_KIND_META } from '@/lib/types';
+import { GOAL_META, PROCEDURE_KIND_META } from '@/lib/types';
 import { showAlert } from '@/lib/alert';
 
 export default function ProceduresScreen() {
@@ -164,6 +164,30 @@ export default function ProceduresScreen() {
                         .toLowerCase()}
                     </Text>
                   )}
+                  {p.targetZones && p.targetZones.length > 0 && (
+                    <View style={styles.zoneRow}>
+                      {p.targetZones.map((z) => (
+                        <View
+                          key={z}
+                          style={[
+                            styles.zoneChip,
+                            {
+                              backgroundColor: palette.accentSoft,
+                              borderColor: palette.accentSoft,
+                            },
+                          ]}>
+                          <MaterialCommunityIcons
+                            name={GOAL_META[z].icon as any}
+                            size={11}
+                            color={palette.accent}
+                          />
+                          <Text style={[styles.zoneChipText, { color: palette.accent }]}>
+                            {GOAL_META[z].label}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
                 <Pressable hitSlop={8} onPress={() => handleMenu(p.id, p.name)}>
                   <Ionicons
@@ -238,6 +262,25 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 10,
     fontWeight: '700',
+  },
+  zoneRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  zoneChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  zoneChipText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   treatmentName: { fontSize: 19, fontWeight: '600' },
   metaRow: { flexDirection: 'row', marginTop: 4 },

@@ -19,6 +19,7 @@
 
 import { supabase } from './supabase';
 import type {
+  Goal,
   JournalEntry,
   Mood,
   Photo,
@@ -41,6 +42,7 @@ function procedureToRow(p: Procedure, userId: string): Row {
     user_id: userId,
     name: p.name,
     kinds: p.kinds,
+    target_zones: p.targetZones,
     amount: p.amount,
     unit: p.unit,
     frequency_per_day: p.frequencyPerDay,
@@ -60,6 +62,7 @@ function rowToProcedure(r: Row): Procedure {
     id: String(r.id),
     name: String(r.name),
     kinds: kinds.length > 0 ? kinds : ['other'],
+    targetZones: (r.target_zones as Goal[] | null) ?? [],
     amount: Number(r.amount),
     unit: String(r.unit),
     frequencyPerDay: Number(r.frequency_per_day),

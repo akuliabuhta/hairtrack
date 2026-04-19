@@ -102,15 +102,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         JournalStore.list(),
         ProfileStore.get(),
       ]);
-      // One-shot migration: older local records had `kind: ProcedureKind`.
-      // Coerce them to `kinds: [kind]` so the new multi-select code doesn't
-      // see undefined. No-op on already-migrated records.
+      // One-shot migration for older local records:
+      //  - `kind: ProcedureKind` → `kinds: [kind]`
+      //  - missing `targetZones` → []
       const procedures = rawProcedures.map((p) => {
         const anyP = p as Procedure & { kind?: string };
-        if (!anyP.kinds || anyP.kinds.length === 0) {
-          return { ...p, kinds: anyP.kind ? [anyP.kind as Procedure['kinds'][number]] : ['other' as const] };
-        }
-        return p;
+        const migrated: Procedure = {
+          ...p,
+          kinds:
+            anyP.kinds && anyP.kinds.length > 0
+              ? anyP.kinds
+              : anyP.kind
+                ? [anyP.kind as Procedure['kinds'][number]]
+                : ['other'],
+          targetZones: p.targetZones ?? [],
+        };
+        return migrated;
       });
       if (cancelled) return;
       setState({
@@ -264,7 +271,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ]);
       // Cancel notifications for this procedure
       await rescheduleProcedure(
-        { id, name: '', kinds: ['other'], amount: 0, unit: '', frequencyPerDay: 0, reminderTimes: [], createdAt: '' },
+        { id, name: '', kinds: ['other'], targetZones: [], amount: 0, unit: '', frequencyPerDay: 0, reminderTimes: [], createdAt: '' },
         false,
       );
       if (userId) Cloud.deleteProcedure(id, userId);

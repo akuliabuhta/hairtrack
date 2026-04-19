@@ -32,6 +32,9 @@ create table if not exists public.procedures (
   name text not null,
   -- Multi-select: a single routine can combine e.g. лосьон + дермароллер.
   kinds text[] not null default array['other']::text[],
+  -- Which body zones this treatment is applied to (same 3-value set as
+  -- onboarding goals). Empty array = not zone-specific (e.g. vitamin).
+  target_zones text[] not null default array[]::text[],
   amount numeric not null default 1,
   unit text not null default 'раз',
   frequency_per_day int not null default 1 check (frequency_per_day between 1 and 12),
@@ -43,6 +46,9 @@ create table if not exists public.procedures (
   constraint procedures_kinds_values_check check (
     kinds <@ array['lotion','spray','pill','massage','derma-roller','shampoo','oil','other']::text[]
     and array_length(kinds, 1) >= 1
+  ),
+  constraint procedures_target_zones_values_check check (
+    target_zones <@ array['head','beard','brows']::text[]
   )
 );
 create index if not exists procedures_user_idx on public.procedures(user_id);

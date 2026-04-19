@@ -15,8 +15,13 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useProcedures } from '@/contexts/data-context';
-import { PROCEDURE_KIND_META, type ProcedureKind } from '@/lib/types';
+import { useProcedures, useProfile } from '@/contexts/data-context';
+import {
+  GOAL_META,
+  PROCEDURE_KIND_META,
+  type Goal,
+  type ProcedureKind,
+} from '@/lib/types';
 import { showAlert } from '@/lib/alert';
 
 // Order matters — 'lotion' first because it's the common starting point
@@ -49,6 +54,7 @@ export default function TreatmentForm() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { procedures, addProcedure, updateProcedure, deleteProcedure } = useProcedures();
+  const { profile } = useProfile();
 
   const editing = useMemo(
     () => (id ? procedures.find((p) => p.id === id) : undefined),
@@ -67,6 +73,18 @@ export default function TreatmentForm() {
   const [times, setTimes] = useState<string[]>(editing?.reminderTimes ?? ['09:00', '21:00']);
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [newTime, setNewTime] = useState('');
+  // Prefill zones from onboarding goals so the common case (same as the
+  // user's declared growth targets) is a single tap away. They can still
+  // override per procedure.
+  const [targetZones, setTargetZones] = useState<Goal[]>(
+    editing?.targetZones ?? profile.goals ?? [],
+  );
+
+  const toggleZone = (z: Goal) => {
+    setTargetZones((prev) =>
+      prev.includes(z) ? prev.filter((x) => x !== z) : [...prev, z],
+    );
+  };
 
   // When the primary kind changes (and the user hasn't typed a custom unit),
   // swap in the matching default unit.
@@ -99,6 +117,7 @@ export default function TreatmentForm() {
     const payload = {
       name: name.trim(),
       kinds,
+      targetZones,
       amount,
       unit: unit.trim() || PROCEDURE_KIND_META[kinds[0] ?? 'other'].defaultUnit,
       frequencyPerDay: frequency,
@@ -232,6 +251,43 @@ export default function TreatmentForm() {
               ]}
             />
           </View>
+        </View>
+
+        {/* Target zones — where on the body this treatment is applied */}
+        <Text style={[styles.label, { color: palette.text }]}>Зоны применения</Text>
+        <Text style={[styles.hint, { color: palette.textMuted }]}>
+          На какой зоне используется это лечение. Можно несколько.
+        </Text>
+        <View style={styles.kindGrid}>
+          {(Object.keys(GOAL_META) as Goal[]).map((z) => {
+            const meta = GOAL_META[z];
+            const selected = targetZones.includes(z);
+            return (
+              <Pressable
+                key={z}
+                onPress={() => toggleZone(z)}
+                style={[
+                  styles.kindCell,
+                  {
+                    backgroundColor: selected ? palette.accent : palette.surface,
+                    borderColor: selected ? palette.accent : palette.border,
+                  },
+                ]}>
+                <MaterialCommunityIcons
+                  name={meta.icon as any}
+                  size={20}
+                  color={selected ? '#FFF' : palette.text}
+                />
+                <Text
+                  style={[
+                    styles.kindLabel,
+                    { color: selected ? '#FFF' : palette.text },
+                  ]}>
+                  {meta.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Frequency */}
