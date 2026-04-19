@@ -81,7 +81,10 @@ export default function JournalForm() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, backgroundColor: palette.background }}>
       <Stack.Screen options={{ title: editing ? 'Запись' : 'Новая запись' }} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled">
         <Text style={[styles.dateText, { color: palette.textSecondary }]}>
           {targetDate}
         </Text>
@@ -154,9 +157,18 @@ export default function JournalForm() {
           })}
         </View>
 
-        <View style={{ height: Spacing.xl }} />
-        <PrimaryButton title={editing ? 'Сохранить' : 'Добавить запись'} onPress={handleSave} />
+      </ScrollView>
 
+      {/* Sticky footer — see treatment-form for rationale. */}
+      <View
+        style={[
+          styles.footer,
+          { backgroundColor: palette.background, borderTopColor: palette.border },
+        ]}>
+        <PrimaryButton
+          title={editing ? 'Сохранить' : 'Добавить запись'}
+          onPress={handleSave}
+        />
         {editing && (
           <Pressable onPress={handleDelete} style={styles.deleteRow}>
             <Ionicons name="trash-outline" size={20} color={palette.danger} />
@@ -165,7 +177,7 @@ export default function JournalForm() {
             </Text>
           </Pressable>
         )}
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -173,7 +185,12 @@ export default function JournalForm() {
 const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.lg,
+  },
+  footer: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   dateText: { fontSize: 15, marginBottom: Spacing.md },
   label: {

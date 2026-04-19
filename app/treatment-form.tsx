@@ -129,6 +129,7 @@ export default function TreatmentForm() {
       style={{ flex: 1, backgroundColor: palette.background }}>
       <Stack.Screen options={{ title: editing ? 'Изменить' : 'Новое лечение' }} />
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}>
@@ -305,10 +306,20 @@ export default function TreatmentForm() {
             { backgroundColor: palette.surface, color: palette.text },
           ]}
         />
+      </ScrollView>
 
-        <View style={{ height: Spacing.xl }} />
-        <PrimaryButton title={editing ? 'Сохранить изменения' : 'Добавить лечение'} onPress={handleSave} />
-
+      {/* Fixed footer — the save button must always be reachable without
+          scrolling. A tall form + hidden desktop scrollbars made it easy
+          to miss that the CTA was below the fold. */}
+      <View
+        style={[
+          styles.footer,
+          { backgroundColor: palette.background, borderTopColor: palette.border },
+        ]}>
+        <PrimaryButton
+          title={editing ? 'Сохранить изменения' : 'Добавить лечение'}
+          onPress={handleSave}
+        />
         {editing && (
           <Pressable onPress={handleDelete} style={styles.deleteRow}>
             <Ionicons name="trash-outline" size={20} color={palette.danger} />
@@ -317,7 +328,7 @@ export default function TreatmentForm() {
             </Text>
           </Pressable>
         )}
-      </ScrollView>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -325,7 +336,12 @@ export default function TreatmentForm() {
 const styles = StyleSheet.create({
   content: {
     padding: Spacing.lg,
-    paddingBottom: Spacing.xxl,
+    paddingBottom: Spacing.lg,
+  },
+  footer: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   label: {
     fontSize: 13,
