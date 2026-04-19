@@ -148,6 +148,23 @@ export const GOAL_META: Record<Goal, { label: string; icon: string }> = {
   brows: { label: 'Брови', icon: 'eye-outline' },
 };
 
+export type Analysis = {
+  id: string;
+  photoKeys: string[]; // R2 storage_keys used in the analysis
+  norwoodStage?: number | null; // 1..7, male pattern
+  ludwigStage?: number | null; // 1..3, female pattern
+  densityPct?: number | null; // 0..100
+  weakZone?: PhotoZone | null;
+  asymmetryPct?: number | null;
+  overallScore?: number | null; // 0..100
+  summary?: string;
+  recommendations: string[];
+  model: string;
+  status: 'pending' | 'completed' | 'failed';
+  error?: string;
+  createdAt: IsoDate;
+};
+
 export const SYMPTOMS_RU: { id: string; label: string }[] = [
   { id: 'shedding', label: 'Выпадение' },
   { id: 'itch', label: 'Зуд' },
