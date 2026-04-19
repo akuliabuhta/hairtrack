@@ -28,6 +28,7 @@ import {
   requestNotificationPermissions,
 } from '@/lib/notifications';
 import { deletePhotoFile } from '@/lib/photos';
+import * as Cloud from '@/lib/sync';
 import type {
   DayKey,
   JournalEntry,
@@ -38,6 +39,7 @@ import type {
 } from '@/lib/types';
 import { DEFAULT_PROFILE } from '@/lib/types';
 import { dayKey, uid } from '@/lib/uuid';
+import { useAuth } from '@/contexts/auth-context';
 
 type State = {
   ready: boolean;
@@ -86,6 +88,8 @@ const initialState: State = {
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<State>(initialState);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   // ---- Hydration --------------------------------------------------------
   useEffect(() => {
@@ -113,6 +117,79 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // ---- Cloud sync on sign-in -------------------------------------------
+  // When the user signs in (or a session is restored), pull their cloud
+  // snapshot and merge with local state. Cloud wins on id conflict; local
+  // rows not present in the cloud are pushed up so the user never loses
+  // data they entered while anonymous.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    (async () => {
+      const snapshot = await Cloud.pullAll(userId);
+      if (cancelled || !snapshot) return;
+
+      setState((prev) => {
+        // Merge: cloud wins on id conflict, local-only rows survive.
+        const mergeById = <T extends { id: string }>(local: T[], remote: T[]): T[] => {
+          const byId = new Map<string, T>();
+          for (const row of local) byId.set(row.id, row);
+          for (const row of remote) byId.set(row.id, row);
+          return Array.from(byId.values());
+        };
+        return {
+          ready: true,
+          procedures: mergeById(prev.procedures, snapshot.procedures),
+          procedureLogs: mergeById(prev.procedureLogs, snapshot.procedureLogs),
+          journal: mergeById(prev.journal, snapshot.journal),
+          photos: mergeById(prev.photos, snapshot.photos),
+          profile: {
+            ...prev.profile,
+            ...snapshot.profile,
+            // Local onboarding state wins — it's a UX flag, not data.
+            onboardingCompleted:
+              snapshot.profile.onboardingCompleted || prev.profile.onboardingCompleted,
+          },
+        };
+      });
+
+      // Find local rows missing from the cloud and push them up.
+      const remoteProcIds = new Set(snapshot.procedures.map((p) => p.id));
+      for (const p of state.procedures) {
+        if (!remoteProcIds.has(p.id)) Cloud.pushProcedure(p, userId);
+      }
+      const remoteLogIds = new Set(snapshot.procedureLogs.map((l) => l.id));
+      for (const l of state.procedureLogs) {
+        if (!remoteLogIds.has(l.id)) Cloud.pushProcedureLog(l, userId);
+      }
+      const remoteJournalIds = new Set(snapshot.journal.map((j) => j.id));
+      for (const j of state.journal) {
+        if (!remoteJournalIds.has(j.id)) Cloud.pushJournal(j, userId);
+      }
+      const remotePhotoIds = new Set(snapshot.photos.map((p) => p.id));
+      for (const p of state.photos) {
+        if (!remotePhotoIds.has(p.id)) Cloud.pushPhoto(p, userId);
+      }
+      // Push local profile if the row was just created by the trigger.
+      Cloud.pushProfile(state.profile, userId);
+
+      // Persist merged state locally so offline boots see the latest cloud data.
+      await Promise.all([
+        ProceduresStore.save(snapshot.procedures),
+        LogsStore.save(snapshot.procedureLogs),
+        PhotosStore.save(snapshot.photos),
+        JournalStore.save(snapshot.journal),
+      ]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only depend on userId — we don't want to refetch on
+    // every local mutation. state.* in the push-loop is read on latest via
+    // closure capture, which is fine as a best-effort bootstrap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
   // ---- Procedure helpers -----------------------------------------------
   const persistProcedures = useCallback(async (next: Procedure[]) => {
     await ProceduresStore.save(next);
@@ -135,9 +212,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (state.profile.notificationsEnabled) {
         await rescheduleProcedure(procedure, true);
       }
+      if (userId) Cloud.pushProcedure(procedure, userId);
       return procedure;
     },
-    [persistProcedures, state.profile.notificationsEnabled],
+    [persistProcedures, state.profile.notificationsEnabled, userId],
   );
 
   const updateProcedure = useCallback<Actions['updateProcedure']>(
@@ -156,8 +234,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (updated && state.profile.notificationsEnabled) {
         await rescheduleProcedure(updated, !updated.archivedAt);
       }
+      if (userId && updated) Cloud.pushProcedure(updated, userId);
     },
-    [persistProcedures, state.profile.notificationsEnabled],
+    [persistProcedures, state.profile.notificationsEnabled, userId],
   );
 
   const deleteProcedure = useCallback<Actions['deleteProcedure']>(
@@ -178,41 +257,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         { id, name: '', kind: 'other', amount: 0, unit: '', frequencyPerDay: 0, reminderTimes: [], createdAt: '' },
         false,
       );
+      if (userId) Cloud.deleteProcedure(id, userId);
     },
-    [],
+    [userId],
   );
 
   // ---- Procedure logs --------------------------------------------------
   const setProcedureCount = useCallback<Actions['setProcedureCount']>(
     async (procedureId, day, count) => {
       let nextLogs: ProcedureLog[] = [];
+      let mutated: ProcedureLog | undefined;
       setState((prev) => {
         const existing = prev.procedureLogs.find(
           (l) => l.procedureId === procedureId && l.date === day,
         );
         if (existing) {
-          nextLogs = prev.procedureLogs.map((l) =>
-            l.id === existing.id
-              ? { ...l, count, updatedAt: new Date().toISOString() }
-              : l,
-          );
+          mutated = { ...existing, count, updatedAt: new Date().toISOString() };
+          nextLogs = prev.procedureLogs.map((l) => (l.id === existing.id ? mutated! : l));
         } else {
-          nextLogs = [
-            ...prev.procedureLogs,
-            {
-              id: uid(),
-              procedureId,
-              date: day,
-              count,
-              updatedAt: new Date().toISOString(),
-            },
-          ];
+          mutated = {
+            id: uid(),
+            procedureId,
+            date: day,
+            count,
+            updatedAt: new Date().toISOString(),
+          };
+          nextLogs = [...prev.procedureLogs, mutated];
         }
         return { ...prev, procedureLogs: nextLogs };
       });
       await LogsStore.save(nextLogs);
+      if (userId && mutated) Cloud.pushProcedureLog(mutated, userId);
     },
-    [],
+    [userId],
   );
 
   const tickProcedure = useCallback<Actions['tickProcedure']>(
@@ -230,66 +307,83 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ---- Photos ----------------------------------------------------------
-  const addPhoto = useCallback<Actions['addPhoto']>(async (input) => {
-    const photo: Photo = {
-      ...input,
-      id: uid(),
-      createdAt: new Date().toISOString(),
-    };
-    let nextList: Photo[] = [];
-    setState((prev) => {
-      nextList = [...prev.photos, photo];
-      return { ...prev, photos: nextList };
-    });
-    await PhotosStore.save(nextList);
-    return photo;
-  }, []);
+  const addPhoto = useCallback<Actions['addPhoto']>(
+    async (input) => {
+      const photo: Photo = {
+        ...input,
+        id: uid(),
+        createdAt: new Date().toISOString(),
+      };
+      let nextList: Photo[] = [];
+      setState((prev) => {
+        nextList = [...prev.photos, photo];
+        return { ...prev, photos: nextList };
+      });
+      await PhotosStore.save(nextList);
+      // Photo metadata goes up now; actual bytes go to R2 in a later commit.
+      if (userId) Cloud.pushPhoto(photo, userId);
+      return photo;
+    },
+    [userId],
+  );
 
-  const deletePhoto = useCallback<Actions['deletePhoto']>(async (id) => {
-    let toDelete: Photo | undefined;
-    let nextList: Photo[] = [];
-    setState((prev) => {
-      toDelete = prev.photos.find((p) => p.id === id);
-      nextList = prev.photos.filter((p) => p.id !== id);
-      return { ...prev, photos: nextList };
-    });
-    await PhotosStore.save(nextList);
-    if (toDelete) await deletePhotoFile(toDelete.uri);
-  }, []);
+  const deletePhoto = useCallback<Actions['deletePhoto']>(
+    async (id) => {
+      let toDelete: Photo | undefined;
+      let nextList: Photo[] = [];
+      setState((prev) => {
+        toDelete = prev.photos.find((p) => p.id === id);
+        nextList = prev.photos.filter((p) => p.id !== id);
+        return { ...prev, photos: nextList };
+      });
+      await PhotosStore.save(nextList);
+      if (toDelete) await deletePhotoFile(toDelete.uri);
+      if (userId) Cloud.deletePhoto(id, userId);
+    },
+    [userId],
+  );
 
   // ---- Journal ---------------------------------------------------------
-  const upsertJournal = useCallback<Actions['upsertJournal']>(async (input) => {
-    const now = new Date().toISOString();
-    let entry!: JournalEntry;
-    let nextList: JournalEntry[] = [];
-    setState((prev) => {
-      const existing = input.id ? prev.journal.find((j) => j.id === input.id) : undefined;
-      if (existing) {
-        entry = { ...existing, ...input, id: existing.id, updatedAt: now };
-        nextList = prev.journal.map((j) => (j.id === entry.id ? entry : j));
-      } else {
-        entry = {
-          ...input,
-          id: input.id ?? uid(),
-          createdAt: now,
-          updatedAt: now,
-        };
-        nextList = [...prev.journal, entry];
-      }
-      return { ...prev, journal: nextList };
-    });
-    await JournalStore.save(nextList);
-    return entry;
-  }, []);
+  const upsertJournal = useCallback<Actions['upsertJournal']>(
+    async (input) => {
+      const now = new Date().toISOString();
+      let entry!: JournalEntry;
+      let nextList: JournalEntry[] = [];
+      setState((prev) => {
+        const existing = input.id ? prev.journal.find((j) => j.id === input.id) : undefined;
+        if (existing) {
+          entry = { ...existing, ...input, id: existing.id, updatedAt: now };
+          nextList = prev.journal.map((j) => (j.id === entry.id ? entry : j));
+        } else {
+          entry = {
+            ...input,
+            id: input.id ?? uid(),
+            createdAt: now,
+            updatedAt: now,
+          };
+          nextList = [...prev.journal, entry];
+        }
+        return { ...prev, journal: nextList };
+      });
+      await JournalStore.save(nextList);
+      if (userId) Cloud.pushJournal(entry, userId);
+      return entry;
+    },
+    [userId],
+  );
 
-  const deleteJournal = useCallback<Actions['deleteJournal']>(async (id) => {
-    let nextList: JournalEntry[] = [];
-    setState((prev) => {
-      nextList = prev.journal.filter((j) => j.id !== id);
-      return { ...prev, journal: nextList };
-    });
-    await JournalStore.save(nextList);
-  }, []);
+  const deleteJournal = useCallback<Actions['deleteJournal']>(
+    async (id) => {
+      let nextList: JournalEntry[] = [];
+      setState((prev) => {
+        nextList = prev.journal.filter((j) => j.id !== id);
+        return { ...prev, journal: nextList };
+      });
+      await JournalStore.save(nextList);
+      if (userId) Cloud.deleteJournal(id, userId);
+    },
+    [userId],
+  );
 
   // ---- Profile ---------------------------------------------------------
   const updateProfile = useCallback<Actions['updateProfile']>(async (patch) => {
@@ -312,7 +406,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (patch.notificationsEnabled === false) {
       await cancelAllNotifications();
     }
-  }, [state.profile, state.procedures]);
+
+    if (userId) Cloud.pushProfile(nextProfile, userId);
+  }, [state.profile, state.procedures, userId]);
 
   // ---- Reset -----------------------------------------------------------
   const resetAll = useCallback(async () => {
