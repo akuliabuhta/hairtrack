@@ -1,14 +1,35 @@
 /**
- * Lightweight UUID-ish ID generator. We don't need cryptographic uniqueness
- * — just collision-free local IDs for SQLite-row-style records.
+ * ID and date helpers.
  *
- * Format: `<base36 timestamp>-<6 random chars>` — sortable by creation time
- * and short enough to read in dev tools.
+ * `uid()` used to produce a short base36 string, which was readable in
+ * dev tools but incompatible with PostgreSQL's `uuid` column type — our
+ * Supabase sync kept failing with `invalid input syntax for type uuid`.
+ * We now emit RFC 4122 v4 strings so IDs round-trip to cloud without
+ * extra mapping.
  */
+
+/** RFC 4122 v4 UUID. Prefers native `crypto.randomUUID`; falls back to a
+ *  Math.random-based implementation for older runtimes. Not intended to
+ *  be cryptographically unique — just collision-free in practice. */
 export function uid(): string {
-  const time = Date.now().toString(36);
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `${time}-${rand}`;
+  const c: Crypto | undefined =
+    typeof globalThis !== 'undefined' ? (globalThis as { crypto?: Crypto }).crypto : undefined;
+  if (c && typeof c.randomUUID === 'function') {
+    return c.randomUUID();
+  }
+  // Fallback (e.g. very old RN runtimes).
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (ch) => {
+    const r = (Math.random() * 16) | 0;
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Returns true iff the string is a canonical UUID. */
+export function isUuid(s: string): boolean {
+  return UUID_RE.test(s);
 }
 
 /** Day-bucket key for the current local date or a given date. */

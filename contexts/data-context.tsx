@@ -38,7 +38,7 @@ import type {
   UserProfile,
 } from '@/lib/types';
 import { DEFAULT_PROFILE } from '@/lib/types';
-import { dayKey, uid } from '@/lib/uuid';
+import { dayKey, isUuid, uid } from '@/lib/uuid';
 import { useAuth } from '@/contexts/auth-context';
 
 type State = {
@@ -95,20 +95,33 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [rawProcedures, procedureLogs, photos, journal, profile] = await Promise.all([
+      const [rawProcedures, rawLogs, rawPhotos, rawJournal, profile] = await Promise.all([
         ProceduresStore.list(),
         LogsStore.list(),
         PhotosStore.list(),
         JournalStore.list(),
         ProfileStore.get(),
       ]);
-      // One-shot migration for older local records:
-      //  - `kind: ProcedureKind` → `kinds: [kind]`
-      //  - missing `targetZones` → []
-      const procedures = rawProcedures.map((p) => {
+
+      // ---- Migrations for older local records -------------------------
+      // (1) Regenerate non-UUID IDs. Early builds used short base36 IDs
+      //     which PostgreSQL refuses as `uuid`, so cloud sync silently
+      //     failed. Remap the ids here and fix FK references in logs.
+      const idRemap: Record<string, string> = {};
+      const ensureUuid = (oldId: string): string => {
+        if (isUuid(oldId)) return oldId;
+        if (!(oldId in idRemap)) idRemap[oldId] = uid();
+        return idRemap[oldId];
+      };
+
+      // (2) Shape migration:
+      //     - `kind: ProcedureKind` → `kinds: [kind]`
+      //     - missing `targetZones` → []
+      const procedures: Procedure[] = rawProcedures.map((p) => {
         const anyP = p as Procedure & { kind?: string };
-        const migrated: Procedure = {
+        return {
           ...p,
+          id: ensureUuid(p.id),
           kinds:
             anyP.kinds && anyP.kinds.length > 0
               ? anyP.kinds
@@ -117,8 +130,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 : ['other'],
           targetZones: p.targetZones ?? [],
         };
-        return migrated;
       });
+
+      const procedureLogs: ProcedureLog[] = rawLogs.map((l) => ({
+        ...l,
+        id: ensureUuid(l.id),
+        procedureId: ensureUuid(l.procedureId),
+      }));
+
+      const photos: Photo[] = rawPhotos.map((p) => ({ ...p, id: ensureUuid(p.id) }));
+      const journal: JournalEntry[] = rawJournal.map((j) => ({
+        ...j,
+        id: ensureUuid(j.id),
+      }));
+
+      // Persist migrated arrays so the next boot sees clean data.
+      if (Object.keys(idRemap).length > 0) {
+        await Promise.all([
+          ProceduresStore.save(procedures),
+          LogsStore.save(procedureLogs),
+          PhotosStore.save(photos),
+          JournalStore.save(journal),
+        ]);
+      }
+
       if (cancelled) return;
       setState({
         ready: true,
@@ -146,31 +181,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const snapshot = await Cloud.pullAll(userId);
       if (cancelled || !snapshot) return;
 
-      setState((prev) => {
-        // Merge: cloud wins on id conflict, local-only rows survive.
-        const mergeById = <T extends { id: string }>(local: T[], remote: T[]): T[] => {
-          const byId = new Map<string, T>();
-          for (const row of local) byId.set(row.id, row);
-          for (const row of remote) byId.set(row.id, row);
-          return Array.from(byId.values());
-        };
-        return {
-          ready: true,
-          procedures: mergeById(prev.procedures, snapshot.procedures),
-          procedureLogs: mergeById(prev.procedureLogs, snapshot.procedureLogs),
-          journal: mergeById(prev.journal, snapshot.journal),
-          photos: mergeById(prev.photos, snapshot.photos),
-          profile: {
-            ...prev.profile,
-            ...snapshot.profile,
-            // Local onboarding state wins — it's a UX flag, not data.
-            onboardingCompleted:
-              snapshot.profile.onboardingCompleted || prev.profile.onboardingCompleted,
-          },
-        };
+      // Merge local + remote by id (cloud wins on conflict, local-only
+      // rows survive). Do the merge OUTSIDE setState so we can both set
+      // React state and persist the *merged* arrays to disk — persisting
+      // only the snapshot would wipe any local-only rows when the cloud
+      // is empty (which is exactly the first-sign-in case).
+      const mergeById = <T extends { id: string }>(local: T[], remote: T[]): T[] => {
+        const byId = new Map<string, T>();
+        for (const row of local) byId.set(row.id, row);
+        for (const row of remote) byId.set(row.id, row);
+        return Array.from(byId.values());
+      };
+      const mergedProcedures = mergeById(state.procedures, snapshot.procedures);
+      const mergedLogs = mergeById(state.procedureLogs, snapshot.procedureLogs);
+      const mergedJournal = mergeById(state.journal, snapshot.journal);
+      const mergedPhotos = mergeById(state.photos, snapshot.photos);
+      const mergedProfile: UserProfile = {
+        ...state.profile,
+        ...snapshot.profile,
+        // Local onboarding state wins — it's a UX flag, not data.
+        onboardingCompleted:
+          snapshot.profile.onboardingCompleted || state.profile.onboardingCompleted,
+      };
+
+      setState({
+        ready: true,
+        procedures: mergedProcedures,
+        procedureLogs: mergedLogs,
+        journal: mergedJournal,
+        photos: mergedPhotos,
+        profile: mergedProfile,
       });
 
-      // Find local rows missing from the cloud and push them up.
+      // Push local rows that the cloud doesn't yet know about.
       const remoteProcIds = new Set(snapshot.procedures.map((p) => p.id));
       for (const p of state.procedures) {
         if (!remoteProcIds.has(p.id)) Cloud.pushProcedure(p, userId);
@@ -188,14 +231,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (!remotePhotoIds.has(p.id)) Cloud.pushPhoto(p, userId);
       }
       // Push local profile if the row was just created by the trigger.
-      Cloud.pushProfile(state.profile, userId);
+      Cloud.pushProfile(mergedProfile, userId);
 
-      // Persist merged state locally so offline boots see the latest cloud data.
+      // Persist the MERGED arrays (not the snapshot!) so the next boot
+      // sees both cloud rows and any local-only ones that are still in
+      // flight to the cloud.
       await Promise.all([
-        ProceduresStore.save(snapshot.procedures),
-        LogsStore.save(snapshot.procedureLogs),
-        PhotosStore.save(snapshot.photos),
-        JournalStore.save(snapshot.journal),
+        ProceduresStore.save(mergedProcedures),
+        LogsStore.save(mergedLogs),
+        PhotosStore.save(mergedPhotos),
+        JournalStore.save(mergedJournal),
       ]);
     })();
     return () => {
