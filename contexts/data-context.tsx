@@ -305,6 +305,42 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [userId]);
 
+  // ---- Retry pending photo uploads --------------------------------------
+  // Photos captured before sign-in (or while R2 credentials were still
+  // being set up) end up with a local uri but no storageKey. Once the
+  // user is signed in, walk that backlog and try to upload each one.
+  // Best-effort: one pass per sign-in session, sequential to avoid
+  // overloading the free-tier edge function concurrency.
+  useEffect(() => {
+    if (!userId) return;
+    const pending = state.photos.filter(
+      (p) => !p.storageKey && p.uri && (p.uri.startsWith('blob:') || p.uri.startsWith('file://') || p.uri.startsWith('data:') || p.uri.startsWith('http')),
+    );
+    if (pending.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      for (const p of pending) {
+        if (cancelled) break;
+        const result = await uploadPhotoToCloud(p.id, p.uri);
+        if (cancelled || !result.ok) continue;
+        const updated: Photo = { ...p, storageKey: result.storageKey };
+        let nextList: Photo[] = [];
+        setState((prev) => {
+          nextList = prev.photos.map((x) => (x.id === p.id ? updated : x));
+          return { ...prev, photos: nextList };
+        });
+        await PhotosStore.save(nextList);
+        Cloud.pushPhoto(updated, userId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Run on sign-in and whenever the set of pending ids changes (new
+    // photo added). Using length as proxy so we don't re-start mid-loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId, state.photos.filter((p) => !p.storageKey).length]);
+
   // ---- Procedure helpers -----------------------------------------------
   const persistProcedures = useCallback(async (next: Procedure[]) => {
     await ProceduresStore.save(next);
