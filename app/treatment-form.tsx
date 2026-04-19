@@ -67,7 +67,7 @@ export default function TreatmentForm() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      showAlert('Введите название', 'Например: «Миноксидил» или «Финастерид».');
+      showAlert('Введите название', 'Например: «Миноксидил» или «Vikinord 15%».');
       return;
     }
     const amount = Number(amountStr.replace(',', '.'));
@@ -138,7 +138,7 @@ export default function TreatmentForm() {
         <TextInput
           value={name}
           onChangeText={setName}
-          placeholder="Миноксидил, Финастерид, дермароллер…"
+          placeholder="Миноксидил, Vikinord 15%, дермароллер…"
           placeholderTextColor={palette.textMuted}
           style={[
             styles.input,
