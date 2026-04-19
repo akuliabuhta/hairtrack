@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Pressable,
@@ -32,6 +32,10 @@ const RU_MONTHS = [
   'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
 ];
 const RU_WEEKDAY_MON_FIRST = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+// Keep these in sync with styles.dayCell / styles.stripContent gap.
+const DAY_CELL_WIDTH = 48;
+const DAY_CELL_GAP = Spacing.sm; // matches stripContent.gap
 
 function isSameDay(a: Date, b: Date): boolean {
   return (
@@ -90,6 +94,7 @@ export default function DailyScreen() {
   const today = useMemo(() => new Date(), []);
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const selectedDayKey = dayKey(selectedDate);
+  const stripRef = useRef<ScrollView>(null);
 
   const { procedures } = useProcedures();
   const { logs, allLogs, tickProcedure } = useProcedureLogs(selectedDayKey);
@@ -222,11 +227,22 @@ export default function DailyScreen() {
           />
         </View>
 
-        {/* Day strip */}
+        {/* Day strip — centers today's cell on first layout */}
         <ScrollView
+          ref={stripRef}
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.stripContent}>
+          contentContainerStyle={styles.stripContent}
+          onLayout={(e) => {
+            const viewportW = e.nativeEvent.layout.width;
+            // Cells are DAY_CELL_WIDTH + gap (see styles.stripContent). Today is the 16th cell (index 15).
+            const offset =
+              15 * (DAY_CELL_WIDTH + DAY_CELL_GAP) +
+              DAY_CELL_WIDTH / 2 -
+              viewportW / 2 +
+              Spacing.lg;
+            stripRef.current?.scrollTo({ x: Math.max(0, offset), animated: false });
+          }}>
           {strip.map((d) => {
             const isSelected = isSameDay(d, selectedDate);
             const isToday = isSameDay(d, today);
@@ -309,7 +325,7 @@ export default function DailyScreen() {
                 color={palette.secondary}
               />
               <Text style={[styles.statLabel, { color: palette.textSecondary }]}>
-                Стрик
+                Серия
               </Text>
             </View>
             <Text style={[styles.statValue, { color: palette.text }]}>

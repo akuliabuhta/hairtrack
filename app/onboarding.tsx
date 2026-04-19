@@ -6,7 +6,7 @@
  *  4. Confirm and request notification permissions
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -46,6 +46,13 @@ export default function Onboarding() {
   const [step, setStep] = useState<Step>('welcome');
   const [gender, setGender] = useState<Gender | undefined>();
   const [goals, setGoals] = useState<Goal[]>([]);
+
+  // Beard isn't a female growth target — drop it if the user flips gender back.
+  useEffect(() => {
+    if (gender === 'female' && goals.includes('beard')) {
+      setGoals((prev) => prev.filter((g) => g !== 'beard'));
+    }
+  }, [gender, goals]);
 
   const stepIndex = STEPS.indexOf(step);
   const canContinue = useMemo(() => {
@@ -101,7 +108,7 @@ export default function Onboarding() {
             <Text style={[styles.title, { color: palette.text }]}>Добро пожаловать в HairTrack</Text>
             <Text style={[styles.body, { color: palette.textSecondary }]}>
               Отслеживайте рост волос на голове, бороде и бровях по фото и
-              расписанию процедур. Все данные хранятся локально на вашем устройстве.
+              расписанию процедур. ИИ-анализ покажет, как идёт прогресс.
             </Text>
           </>
         )}
@@ -151,7 +158,9 @@ export default function Onboarding() {
               Выберите одно или несколько направлений — экраны прогресса будут заточены под них.
             </Text>
             <View style={{ height: Spacing.xl }} />
-            {(Object.keys(GOAL_META) as Goal[]).map((g) => {
+            {(Object.keys(GOAL_META) as Goal[])
+              .filter((g) => !(g === 'beard' && gender === 'female'))
+              .map((g) => {
               const meta = GOAL_META[g];
               const selected = goals.includes(g);
               return (
