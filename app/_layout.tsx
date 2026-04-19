@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
+import { AuthProvider } from '@/contexts/auth-context';
 import { DataProvider } from '@/contexts/data-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -19,32 +20,38 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <DataProvider>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="onboarding"
-                options={{ headerShown: false, presentation: 'fullScreenModal' }}
-              />
-              <Stack.Screen
-                name="treatment-form"
-                options={{ presentation: 'modal', title: 'Лечение' }}
-              />
-              <Stack.Screen
-                name="journal-form"
-                options={{ presentation: 'modal', title: 'Запись' }}
-              />
-              <Stack.Screen
-                name="photo-detail"
-                options={{ presentation: 'modal', title: 'Фото' }}
-              />
-              <Stack.Screen
-                name="article-detail"
-                options={{ title: 'Статья' }}
-              />
-            </Stack>
-            <StatusBar style="auto" />
-          </DataProvider>
+          <AuthProvider>
+            <DataProvider>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="onboarding"
+                  options={{ headerShown: false, presentation: 'fullScreenModal' }}
+                />
+                <Stack.Screen
+                  name="auth"
+                  options={{ presentation: 'modal', title: 'Вход' }}
+                />
+                <Stack.Screen
+                  name="treatment-form"
+                  options={{ presentation: 'modal', title: 'Лечение' }}
+                />
+                <Stack.Screen
+                  name="journal-form"
+                  options={{ presentation: 'modal', title: 'Запись' }}
+                />
+                <Stack.Screen
+                  name="photo-detail"
+                  options={{ presentation: 'modal', title: 'Фото' }}
+                />
+                <Stack.Screen
+                  name="article-detail"
+                  options={{ title: 'Статья' }}
+                />
+              </Stack>
+              <StatusBar style="auto" />
+            </DataProvider>
+          </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

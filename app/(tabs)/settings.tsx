@@ -15,8 +15,11 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
+import { useRouter } from 'expo-router';
+
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/contexts/data-context';
 import { exportAll } from '@/lib/storage';
 
@@ -29,7 +32,9 @@ type Row = {
 export default function SettingsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
+  const router = useRouter();
   const { profile, updateProfile, resetAll } = useProfile();
+  const { user, signOut, isConfigured } = useAuth();
 
   const handleExport = async () => {
     try {
@@ -101,6 +106,44 @@ export default function SettingsScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}>
+        {/* Account card */}
+        <Pressable
+          onPress={() => (user ? null : router.push('/auth'))}
+          style={[styles.accountCard, { backgroundColor: palette.background }]}>
+          <View style={[styles.accountAvatar, { backgroundColor: palette.accentSoft }]}>
+            <MaterialCommunityIcons
+              name={user ? 'account-check' : 'account-plus-outline'}
+              size={26}
+              color={palette.accent}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.accountTitle, { color: palette.text }]}>
+              {user ? (user.email ?? 'Ваш аккаунт') : 'Войти или создать аккаунт'}
+            </Text>
+            <Text style={[styles.accountBody, { color: palette.textSecondary }]}>
+              {user
+                ? 'Данные синхронизируются между устройствами.'
+                : isConfigured
+                  ? 'Синхронизируйте прогресс между устройствами.'
+                  : 'Синхронизация пока не настроена — данные сохраняются на устройстве.'}
+            </Text>
+          </View>
+          {user ? (
+            <Pressable
+              onPress={() =>
+                Alert.alert('Выйти из аккаунта?', 'Локальные данные останутся на устройстве.', [
+                  { text: 'Отмена', style: 'cancel' },
+                  { text: 'Выйти', style: 'destructive', onPress: () => signOut() },
+                ])
+              }>
+              <Ionicons name="log-out-outline" size={22} color={palette.textSecondary} />
+            </Pressable>
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={palette.textMuted} />
+          )}
+        </Pressable>
+
         {/* Add widget banner */}
         <View style={[styles.widgetCard, { backgroundColor: palette.background }]}>
           <View style={[styles.widgetIcon, { backgroundColor: palette.surface }]}>
@@ -209,6 +252,23 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xxl,
     paddingTop: Spacing.md,
   },
+  accountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  accountAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accountTitle: { fontSize: 16, fontWeight: '700', marginBottom: 2 },
+  accountBody: { fontSize: 13, lineHeight: 18 },
   widgetCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
