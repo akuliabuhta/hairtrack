@@ -306,40 +306,67 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [userId]);
 
   // ---- Retry pending photo uploads --------------------------------------
-  // Photos captured before sign-in (or while R2 credentials were still
-  // being set up) end up with a local uri but no storageKey. Once the
-  // user is signed in, walk that backlog and try to upload each one.
-  // Best-effort: one pass per sign-in session, sequential to avoid
-  // overloading the free-tier edge function concurrency.
+  // Photos captured but not uploaded (created while offline / signed-out /
+  // before CORS was set) end up with a local uri and null storageKey.
+  // Once the user is signed in, walk that backlog and try to upload each
+  // one. Constraints:
+  //   - Runs once per sign-in session (guarded by a ref) so the loop
+  //     doesn't restart when setState flips photos mid-pass.
+  //   - Skips stale `blob:` URIs on web — they only live for the page
+  //     session that created them, so after a reload the bytes are gone
+  //     and `fetch(blobUrl)` would throw "Failed to fetch".
+  //   - Wrapped in a top-level try/catch so any unexpected failure
+  //     doesn't take the whole data context down.
+  const retryStartedRef = React.useRef<string | null>(null);
   useEffect(() => {
     if (!userId) return;
-    const pending = state.photos.filter(
-      (p) => !p.storageKey && p.uri && (p.uri.startsWith('blob:') || p.uri.startsWith('file://') || p.uri.startsWith('data:') || p.uri.startsWith('http')),
-    );
-    if (pending.length === 0) return;
+    if (retryStartedRef.current === userId) return;
+    retryStartedRef.current = userId;
     let cancelled = false;
     (async () => {
-      for (const p of pending) {
-        if (cancelled) break;
-        const result = await uploadPhotoToCloud(p.id, p.uri);
-        if (cancelled || !result.ok) continue;
-        const updated: Photo = { ...p, storageKey: result.storageKey };
-        let nextList: Photo[] = [];
-        setState((prev) => {
-          nextList = prev.photos.map((x) => (x.id === p.id ? updated : x));
-          return { ...prev, photos: nextList };
+      try {
+        const pending = state.photos.filter((p) => {
+          if (p.storageKey || !p.uri) return false;
+          // file://, data:, http(s): — always retryable.
+          if (
+            p.uri.startsWith('file://') ||
+            p.uri.startsWith('data:') ||
+            p.uri.startsWith('http')
+          ) {
+            return true;
+          }
+          // blob: URIs survive only while the page that created them is
+          // alive. If we're past a reload, they're dead — skip so fetch
+          // doesn't throw "Failed to fetch".
+          return false;
         });
-        await PhotosStore.save(nextList);
-        Cloud.pushPhoto(updated, userId);
+        for (const p of pending) {
+          if (cancelled) break;
+          try {
+            const result = await uploadPhotoToCloud(p.id, p.uri);
+            if (cancelled || !result.ok) continue;
+            const updated: Photo = { ...p, storageKey: result.storageKey };
+            let nextList: Photo[] = [];
+            setState((prev) => {
+              nextList = prev.photos.map((x) => (x.id === p.id ? updated : x));
+              return { ...prev, photos: nextList };
+            });
+            await PhotosStore.save(nextList);
+            Cloud.pushPhoto(updated, userId);
+          } catch (err) {
+            console.warn('[sync] photo retry failed', p.id, err);
+          }
+        }
+      } catch (err) {
+        console.warn('[sync] photo retry outer failure', err);
       }
     })();
     return () => {
       cancelled = true;
     };
-    // Run on sign-in and whenever the set of pending ids changes (new
-    // photo added). Using length as proxy so we don't re-start mid-loop.
+    // Deliberately depend only on userId; we snapshot state.photos inside.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, state.photos.filter((p) => !p.storageKey).length]);
+  }, [userId]);
 
   // ---- Procedure helpers -----------------------------------------------
   const persistProcedures = useCallback(async (next: Procedure[]) => {
