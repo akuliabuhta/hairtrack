@@ -27,6 +27,28 @@ export const isSupabaseConfigured =
   SUPABASE_ANON_KEY.length > 0;
 
 /**
+ * SSR-safe storage adapter.
+ *
+ * Expo's `expo start --web` does a server-side render pass on Node.js to
+ * generate the initial HTML. AsyncStorage's web shim touches
+ * `window.localStorage` synchronously on `_getKey`, which throws
+ * `ReferenceError: window is not defined` during SSR.
+ *
+ * We wrap AsyncStorage and short-circuit to null on the server; the
+ * browser bundle picks up the real values on hydration.
+ */
+const inBrowser = typeof window !== 'undefined';
+const ssrSafeStorage = {
+  getItem: async (key: string) => (inBrowser ? AsyncStorage.getItem(key) : null),
+  setItem: async (key: string, value: string) => {
+    if (inBrowser) await AsyncStorage.setItem(key, value);
+  },
+  removeItem: async (key: string) => {
+    if (inBrowser) await AsyncStorage.removeItem(key);
+  },
+};
+
+/**
  * Shared client. When env vars are missing, we return a typed stub that
  * throws on any method call — the app's sync layer checks
  * `isSupabaseConfigured` before doing anything, so the stub is only a
@@ -35,9 +57,9 @@ export const isSupabaseConfigured =
 export const supabase: SupabaseClient = isSupabaseConfigured
   ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
       auth: {
-        storage: AsyncStorage as unknown as Storage,
-        autoRefreshToken: true,
-        persistSession: true,
+        storage: ssrSafeStorage as unknown as Storage,
+        autoRefreshToken: inBrowser,
+        persistSession: inBrowser,
         detectSessionInUrl: false,
       },
     })
