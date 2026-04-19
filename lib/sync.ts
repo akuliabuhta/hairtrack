@@ -177,18 +177,32 @@ function rowToProfile(r: Row): Partial<UserProfile> {
 async function safeUpsert(table: string, payload: Row | Row[]) {
   try {
     const { error } = await supabase.from(table).upsert(payload);
-    if (error) console.warn(`[sync] upsert ${table} failed`, error.message);
+    if (error) {
+      console.error(
+        `[sync] upsert ${table} failed:`,
+        error.message,
+        'code=' + (error as { code?: string }).code,
+        'details=' + (error as { details?: string }).details,
+        'payload=' + JSON.stringify(payload),
+      );
+    }
   } catch (err) {
-    console.warn(`[sync] upsert ${table} threw`, err);
+    console.error(`[sync] upsert ${table} threw`, err);
   }
 }
 
 async function safeDelete(table: string, id: string, userId: string) {
   try {
     const { error } = await supabase.from(table).delete().eq('id', id).eq('user_id', userId);
-    if (error) console.warn(`[sync] delete ${table} failed`, error.message);
+    if (error) {
+      console.error(
+        `[sync] delete ${table} failed:`,
+        error.message,
+        'code=' + (error as { code?: string }).code,
+      );
+    }
   } catch (err) {
-    console.warn(`[sync] delete ${table} threw`, err);
+    console.error(`[sync] delete ${table} threw`, err);
   }
 }
 
