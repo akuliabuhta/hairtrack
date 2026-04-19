@@ -4,18 +4,20 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  ViewStyle,
-  StyleProp,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
-import { Colors, Radius, Spacing } from '@/constants/theme';
+import { BRAND_GRADIENT, Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type Props = {
   title: string;
   onPress?: () => void;
-  variant?: 'solid' | 'ghost';
+  /** `gradient` uses the brand orange→purple sweep; `solid` is flat purple; `ghost` is borderless. */
+  variant?: 'gradient' | 'solid' | 'ghost';
   loading?: boolean;
   disabled?: boolean;
   icon?: React.ReactNode;
@@ -25,7 +27,7 @@ type Props = {
 export function PrimaryButton({
   title,
   onPress,
-  variant = 'solid',
+  variant = 'gradient',
   loading,
   disabled,
   icon,
@@ -34,9 +36,22 @@ export function PrimaryButton({
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
 
+  const isGhost = variant === 'ghost';
   const isSolid = variant === 'solid';
-  const bg = isSolid ? palette.accent : 'transparent';
-  const fg = isSolid ? palette.accentText : palette.accent;
+  const fg = isGhost ? palette.accent : '#FFFFFF';
+
+  const content = (
+    <View style={styles.row}>
+      {loading ? (
+        <ActivityIndicator color={fg} />
+      ) : (
+        <>
+          {icon ? <View style={styles.icon}>{icon}</View> : null}
+          <Text style={[styles.label, { color: fg }]}>{title}</Text>
+        </>
+      )}
+    </View>
+  );
 
   return (
     <Pressable
@@ -46,19 +61,22 @@ export function PrimaryButton({
       style={({ pressed }) => [
         styles.btn,
         {
-          backgroundColor: bg,
           opacity: pressed || disabled ? 0.7 : 1,
+          backgroundColor: isSolid ? palette.accent : isGhost ? 'transparent' : 'transparent',
+          overflow: 'hidden',
         },
         style,
       ]}>
-      {loading ? (
-        <ActivityIndicator color={fg} />
-      ) : (
-        <View style={styles.row}>
-          {icon ? <View style={styles.icon}>{icon}</View> : null}
-          <Text style={[styles.label, { color: fg }]}>{title}</Text>
-        </View>
-      )}
+      {variant === 'gradient' ? (
+        <LinearGradient
+          // start from lower-left, end upper-right — mirrors the logo's arrow sweep
+          start={{ x: 0, y: 1 }}
+          end={{ x: 1, y: 0 }}
+          colors={[...BRAND_GRADIENT]}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      {content}
     </Pressable>
   );
 }
@@ -75,11 +93,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  icon: {
-    marginRight: Spacing.sm,
-  },
-  label: {
-    fontSize: 17,
-    fontWeight: '600',
-  },
+  icon: { marginRight: Spacing.sm },
+  label: { fontSize: 17, fontWeight: '700', letterSpacing: 0.2 },
 });

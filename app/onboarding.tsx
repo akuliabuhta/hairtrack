@@ -21,6 +21,7 @@ import {
   MaterialCommunityIcons,
 } from '@expo/vector-icons';
 
+import { BrandMark } from '@/components/brand-mark';
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -95,9 +96,9 @@ export default function Onboarding() {
         {step === 'welcome' && (
           <>
             <View style={styles.iconWrap}>
-              <MaterialCommunityIcons name="hair-dryer-outline" size={72} color={palette.accent} />
+              <BrandMark size={160} shape="tile" variant="full" />
             </View>
-            <Text style={[styles.title, { color: palette.text }]}>Добро пожаловать в Hairtrack</Text>
+            <Text style={[styles.title, { color: palette.text }]}>Добро пожаловать в HairTrack</Text>
             <Text style={[styles.body, { color: palette.textSecondary }]}>
               Отслеживайте рост волос на голове, бороде и бровях по фото и
               расписанию процедур. Все данные хранятся локально на вашем устройстве.
@@ -189,7 +190,7 @@ export default function Onboarding() {
             </View>
             <Text style={[styles.title, { color: palette.text }]}>Включить напоминания?</Text>
             <Text style={[styles.body, { color: palette.textSecondary }]}>
-              Hairtrack может присылать уведомления в назначенное время процедур, чтобы вы ничего не пропустили.
+              HairTrack может присылать уведомления в назначенное время процедур, чтобы вы ничего не пропустили.
               Вы всегда сможете отключить их в настройках.
             </Text>
           </>

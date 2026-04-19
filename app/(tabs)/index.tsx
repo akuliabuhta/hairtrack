@@ -13,6 +13,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 
+import { BrandMark } from '@/components/brand-mark';
 import { Colors, Radius, Shadows, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -202,9 +203,7 @@ export default function DailyScreen() {
               {dayOfTreatment(profile.startDate, today)}-й день лечения
             </Text>
           </View>
-          <View style={[styles.avatar, { backgroundColor: palette.accentSoft }]}>
-            <MaterialCommunityIcons name="sprout" size={22} color={palette.accent} />
-          </View>
+          <BrandMark size={44} shape="tile" borderRadius={22} />
         </View>
 
         {/* Month picker */}

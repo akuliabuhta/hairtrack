@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Hairtrack",
+    "name": "HairTrack",
     "slug": "hairtrack",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,15 +12,15 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.hairtrack.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "Hairtrack использует камеру, чтобы делать фото прогресса роста волос.",
-        "NSPhotoLibraryUsageDescription": "Hairtrack читает фото из галереи, чтобы добавлять их к вашему дневнику.",
-        "NSPhotoLibraryAddUsageDescription": "Hairtrack может сохранять фото прогресса в вашу галерею."
+        "NSCameraUsageDescription": "HairTrack использует камеру, чтобы делать фото прогресса роста волос.",
+        "NSPhotoLibraryUsageDescription": "HairTrack читает фото из галереи, чтобы добавлять их к вашему дневнику.",
+        "NSPhotoLibraryAddUsageDescription": "HairTrack может сохранять фото прогресса в вашу галерею."
       }
     },
     "android": {
       "package": "com.hairtrack.app",
       "adaptiveIcon": {
-        "backgroundColor": "#059669",
+        "backgroundColor": "#7C2DB2",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -57,14 +57,14 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Hairtrack читает фото из галереи, чтобы добавлять их к вашему дневнику.",
-          "cameraPermission": "Hairtrack использует камеру, чтобы делать фото прогресса роста волос."
+          "photosPermission": "HairTrack читает фото из галереи, чтобы добавлять их к вашему дневнику.",
+          "cameraPermission": "HairTrack использует камеру, чтобы делать фото прогресса роста волос."
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#059669"
+          "color": "#7C2DB2"
         }
       ]
     ],

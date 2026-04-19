@@ -1,63 +1,65 @@
 /**
- * Hairtrack design tokens.
- *
- * Intentionally diverges from the original App Store references:
- *  - emerald primary (associated with growth, wellness) instead of royal blue
- *  - warm off-white surfaces instead of pure white
- *  - soft peach secondary for streaks and highlights
- *  - separate cards with borders / subtle shadows instead of saturated panels
+ * Hairtrack design tokens — derived from the brand logo:
+ * orange→purple gradient with deep purple typography.
  */
 
 import { Platform } from 'react-native';
 
-const emerald = '#059669'; // emerald-600
-const emeraldDark = '#34D399'; // emerald-400
-const emeraldSoftLight = '#D1FAE5'; // emerald-100
-const emeraldSoftDark = '#064E3B'; // emerald-900 (as "soft" bg in dark)
-const peach = '#F97316'; // orange-500 (streaks, reminders)
-const peachSoftLight = '#FFEDD5'; // orange-100
+const brandPurple = '#7C2DB2'; // primary — derived from logo deep magenta
+const brandPurpleDark = '#9D5BD1'; // dark-mode tint
+const brandPurpleSoftLight = '#F3E8FF'; // purple-100-ish
+const brandPurpleSoftDark = '#3B1361';
+
+const brandOrange = '#F97316'; // orange-500 — secondary accent, streaks
+const brandOrangeSoft = '#FFEDD5'; // orange-100
+
+const brandTextDark = '#2D1B4E'; // very dark purple (from the wordmark)
+const brandTextDarkSubtle = '#6B6284';
+
+/** Orange→purple gradient used on primary CTAs, hero, icon. */
+export const BRAND_GRADIENT = ['#F97316', '#9D3FCB', '#7C2DB2'] as const;
 
 export const Colors = {
   light: {
-    text: '#1C1917',
-    textSecondary: '#57534E',
-    textMuted: '#A8A29E',
-    background: '#FAFAF7',
-    surface: '#F5F5F4',
+    text: brandTextDark,
+    textSecondary: brandTextDarkSubtle,
+    textMuted: '#A19AB0',
+    background: '#FAF9FC', // warm off-white with slight purple tint
+    surface: '#F3F0F7',
     surfaceElevated: '#FFFFFF',
-    tint: emerald,
-    accent: emerald,
-    accentSoft: emeraldSoftLight,
+    tint: brandPurple,
+    accent: brandPurple,
+    accentSoft: brandPurpleSoftLight,
     accentText: '#FFFFFF',
-    secondary: peach,
-    secondarySoft: peachSoftLight,
-    icon: '#78716C',
-    border: '#E7E5E4',
-    borderStrong: '#D6D3D1',
-    tabIconDefault: '#A8A29E',
-    tabIconSelected: emerald,
+    secondary: brandOrange,
+    secondarySoft: brandOrangeSoft,
+    icon: brandTextDarkSubtle,
+    border: '#E5E1EC',
+    borderStrong: '#CFC8DC',
+    tabIconDefault: '#A19AB0',
+    tabIconSelected: brandPurple,
     success: '#22C55E',
     warning: '#EAB308',
     danger: '#EF4444',
   },
   dark: {
-    text: '#F5F5F4',
-    textSecondary: '#A8A29E',
-    textMuted: '#78716C',
-    background: '#0C0A09',
-    surface: '#1C1917',
-    surfaceElevated: '#292524',
-    tint: emeraldDark,
-    accent: emeraldDark,
-    accentSoft: emeraldSoftDark,
-    accentText: '#052E21',
-    secondary: peach,
-    secondarySoft: '#431407',
-    icon: '#A8A29E',
-    border: '#292524',
-    borderStrong: '#44403C',
-    tabIconDefault: '#78716C',
-    tabIconSelected: emeraldDark,
+    text: '#F5F3F7',
+    textSecondary: '#B5AEC7',
+    textMuted: '#7A7288',
+    background: '#1A0F2E',
+    surface: '#251838',
+    surfaceElevated: '#2E1F46',
+    tint: brandPurpleDark,
+    accent: brandPurpleDark,
+    accentSoft: brandPurpleSoftDark,
+    accentText: '#FFFFFF',
+    secondary: brandOrange,
+    secondarySoft: '#4A1A0C',
+    icon: '#B5AEC7',
+    border: '#352548',
+    borderStrong: '#4A3563',
+    tabIconDefault: '#7A7288',
+    tabIconSelected: brandPurpleDark,
     success: '#34D399',
     warning: '#FACC15',
     danger: '#F87171',
@@ -86,9 +88,9 @@ export const Spacing = {
 export const Shadows = {
   card: Platform.select({
     ios: {
-      shadowColor: '#000',
+      shadowColor: '#2D1B4E',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.06,
+      shadowOpacity: 0.08,
       shadowRadius: 12,
     },
     android: { elevation: 2 },
@@ -96,10 +98,10 @@ export const Shadows = {
   }) as object,
   sm: Platform.select({
     ios: {
-      shadowColor: '#000',
+      shadowColor: '#2D1B4E',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 6,
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
     },
     android: { elevation: 1 },
     default: {},

@@ -37,7 +37,7 @@ export default function SettingsScreen() {
       const json = JSON.stringify(data, null, 2);
       if (Platform.OS === 'web') {
         // On web just share the text — file download requires a different API.
-        await Share.share({ message: json, title: 'Hairtrack backup' });
+        await Share.share({ message: json, title: 'HairTrack backup' });
         return;
       }
       const path = `${FileSystem.cacheDirectory ?? ''}hairtrack-backup-${Date.now()}.json`;
@@ -46,7 +46,7 @@ export default function SettingsScreen() {
       if (canShare) {
         await Sharing.shareAsync(path, {
           mimeType: 'application/json',
-          dialogTitle: 'Hairtrack — резервная копия',
+          dialogTitle: 'HairTrack — резервная копия',
         });
       } else {
         Alert.alert('Сохранено', `Резервная копия: ${path}`);
@@ -195,7 +195,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={[styles.footerText, { color: palette.textMuted }]}>
-          Hairtrack · v1.0.0
+          HairTrack · v1.0.0
         </Text>
       </ScrollView>
     </SafeAreaView>

@@ -57,8 +57,8 @@ export default function ProceduresScreen() {
   const handleShare = async () => {
     const summary =
       procedures.length === 0
-        ? 'У меня пока нет назначенного лечения в Hairtrack.'
-        : ['Моё расписание лечения (Hairtrack):']
+        ? 'У меня пока нет назначенного лечения в HairTrack.'
+        : ['Моё расписание лечения (HairTrack):']
             .concat(
               procedures.map(
                 (p) =>
