@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +15,7 @@ import {
 import { PrimaryButton } from '@/components/ui/primary-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { showAlert } from '@/lib/alert';
 
 type Feature = {
   icon: React.ReactNode;
@@ -56,7 +56,7 @@ export default function AIAnalysisScreen() {
   ];
 
   const handleStart = () => {
-    Alert.alert(
+    showAlert(
       'Скоро в v1.1',
       'ИИ-анализ волос станет доступен в следующем обновлении приложения. Следите за новостями!',
       [{ text: 'Понятно', style: 'default' }],

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,6 +19,7 @@ import { PrimaryButton } from '@/components/ui/primary-button';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/contexts/auth-context';
+import { showAlert } from '@/lib/alert';
 
 type Mode = 'signin' | 'signup';
 
@@ -38,11 +38,11 @@ export default function AuthScreen() {
 
   const submit = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Заполните поля', 'Введите email и пароль.');
+      showAlert('Заполните поля', 'Введите email и пароль.');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Слишком короткий пароль', 'Минимум 6 символов.');
+      showAlert('Слишком короткий пароль', 'Минимум 6 символов.');
       return;
     }
     setSubmitting(true);
@@ -52,11 +52,11 @@ export default function AuthScreen() {
     setSubmitting(false);
 
     if (result.error) {
-      Alert.alert(isSignup ? 'Не удалось создать аккаунт' : 'Не удалось войти', result.error);
+      showAlert(isSignup ? 'Не удалось создать аккаунт' : 'Не удалось войти', result.error);
       return;
     }
     if (isSignup) {
-      Alert.alert(
+      showAlert(
         'Подтвердите почту',
         'Мы отправили письмо. Откройте его и перейдите по ссылке, чтобы завершить регистрацию.',
       );

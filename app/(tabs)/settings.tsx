@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -22,6 +21,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/contexts/auth-context';
 import { useProfile } from '@/contexts/data-context';
 import { exportAll } from '@/lib/storage';
+import { showAlert } from '@/lib/alert';
 
 type Row = {
   id: string;
@@ -54,16 +54,16 @@ export default function SettingsScreen() {
           dialogTitle: 'HairTrack — резервная копия',
         });
       } else {
-        Alert.alert('Сохранено', `Резервная копия: ${path}`);
+        showAlert('Сохранено', `Резервная копия: ${path}`);
       }
     } catch (err) {
       console.warn('export failed', err);
-      Alert.alert('Ошибка', 'Не удалось создать резервную копию.');
+      showAlert('Ошибка', 'Не удалось создать резервную копию.');
     }
   };
 
   const handleReset = () => {
-    Alert.alert(
+    showAlert(
       'Сбросить все данные?',
       'Удалятся все процедуры, фото, журнал и настройки. Действие нельзя отменить.',
       [
@@ -86,17 +86,17 @@ export default function SettingsScreen() {
     {
       id: 'feature',
       label: 'Запросить функцию',
-      onPress: () => Alert.alert('Запросить функцию', 'Напишите нам: feedback@hairtrack.app'),
+      onPress: () => showAlert('Запросить функцию', 'Напишите нам: feedback@hairtrack.app'),
     },
     {
       id: 'bug',
       label: 'Сообщить об ошибке',
-      onPress: () => Alert.alert('Сообщить об ошибке', 'Напишите нам: bugs@hairtrack.app'),
+      onPress: () => showAlert('Сообщить об ошибке', 'Напишите нам: bugs@hairtrack.app'),
     },
-    { id: 'rate', label: 'Оценить это приложение', onPress: () => Alert.alert('Спасибо!', 'Оценка появится в финальном релизе.') },
-    { id: 'terms', label: 'Условия использования', onPress: () => Alert.alert('Условия использования', 'Будут опубликованы перед релизом.') },
-    { id: 'privacy', label: 'Политика конфиденциальности', onPress: () => Alert.alert('Политика конфиденциальности', 'Все данные хранятся локально на вашем устройстве. Облачная синхронизация — опционально.') },
-    { id: 'contact', label: 'Связаться с нами', onPress: () => Alert.alert('Связаться с нами', 'support@hairtrack.app') },
+    { id: 'rate', label: 'Оценить это приложение', onPress: () => showAlert('Спасибо!', 'Оценка появится в финальном релизе.') },
+    { id: 'terms', label: 'Условия использования', onPress: () => showAlert('Условия использования', 'Будут опубликованы перед релизом.') },
+    { id: 'privacy', label: 'Политика конфиденциальности', onPress: () => showAlert('Политика конфиденциальности', 'Все данные хранятся локально на вашем устройстве. Облачная синхронизация — опционально.') },
+    { id: 'contact', label: 'Связаться с нами', onPress: () => showAlert('Связаться с нами', 'support@hairtrack.app') },
   ];
 
   return (
@@ -132,7 +132,7 @@ export default function SettingsScreen() {
           {user ? (
             <Pressable
               onPress={() =>
-                Alert.alert('Выйти из аккаунта?', 'Локальные данные останутся на устройстве.', [
+                showAlert('Выйти из аккаунта?', 'Локальные данные останутся на устройстве.', [
                   { text: 'Отмена', style: 'cancel' },
                   { text: 'Выйти', style: 'destructive', onPress: () => signOut() },
                 ])

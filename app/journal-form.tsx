@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,6 +18,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useJournal } from '@/contexts/data-context';
 import { dayKey } from '@/lib/uuid';
 import { SYMPTOMS_RU, type Mood } from '@/lib/types';
+import { showAlert } from '@/lib/alert';
 
 const MOODS: { id: Mood; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'good', label: 'Хорошо', icon: 'happy-outline' },
@@ -48,7 +48,7 @@ export default function JournalForm() {
 
   const handleSave = async () => {
     if (!text.trim() && symptoms.length === 0 && !mood) {
-      Alert.alert('Пустая запись', 'Добавьте текст, симптомы или настроение.');
+      showAlert('Пустая запись', 'Добавьте текст, симптомы или настроение.');
       return;
     }
     await upsertJournal({
@@ -63,7 +63,7 @@ export default function JournalForm() {
 
   const handleDelete = () => {
     if (!editing) return;
-    Alert.alert('Удалить запись?', 'Действие нельзя отменить.', [
+    showAlert('Удалить запись?', 'Действие нельзя отменить.', [
       { text: 'Отмена', style: 'cancel' },
       {
         text: 'Удалить',

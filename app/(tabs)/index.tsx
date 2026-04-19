@@ -1,6 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +25,7 @@ import {
 import { dayKey, parseDayKey } from '@/lib/uuid';
 import { persistPhoto } from '@/lib/photos';
 import { PROCEDURE_KIND_META } from '@/lib/types';
+import { showAlert } from '@/lib/alert';
 
 const RU_MONTHS = [
   'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -137,7 +137,7 @@ export default function DailyScreen() {
         ? await ImagePicker.requestCameraPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert(
+      showAlert(
         'Нет разрешения',
         source === 'camera'
           ? 'Разрешите доступ к камере в настройках.'
@@ -167,7 +167,7 @@ export default function DailyScreen() {
   };
 
   const handleAddPhoto = () => {
-    Alert.alert(
+    showAlert(
       'Добавить фото',
       'Откуда взять снимок?',
       [

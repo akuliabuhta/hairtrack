@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePhotos } from '@/contexts/data-context';
 import { PHOTO_ZONE_META, type PhotoZone } from '@/lib/types';
+import { showAlert } from '@/lib/alert';
 
 const ZONE_ORDER: PhotoZone[] = [
   'crown',
@@ -66,7 +66,7 @@ export default function PhotoDetail() {
   };
 
   const handleDelete = () => {
-    Alert.alert('Удалить фото?', 'Действие нельзя отменить.', [
+    showAlert('Удалить фото?', 'Действие нельзя отменить.', [
       { text: 'Отмена', style: 'cancel' },
       {
         text: 'Удалить',

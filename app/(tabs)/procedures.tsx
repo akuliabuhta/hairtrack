@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -17,6 +16,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useProcedures } from '@/contexts/data-context';
 import { PROCEDURE_KIND_META } from '@/lib/types';
+import { showAlert } from '@/lib/alert';
 
 export default function ProceduresScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -29,7 +29,7 @@ export default function ProceduresScreen() {
     router.push({ pathname: '/treatment-form', params: { id } });
 
   const handleMenu = (id: string, name: string) => {
-    Alert.alert(
+    showAlert(
       name,
       'Что сделать?',
       [
@@ -38,7 +38,7 @@ export default function ProceduresScreen() {
           text: 'Удалить',
           style: 'destructive',
           onPress: () => {
-            Alert.alert('Удалить?', 'Это удалит лечение и историю отметок.', [
+            showAlert('Удалить?', 'Это удалит лечение и историю отметок.', [
               { text: 'Отмена', style: 'cancel' },
               {
                 text: 'Удалить',

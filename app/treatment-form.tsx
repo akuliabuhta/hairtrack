@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useProcedures } from '@/contexts/data-context';
 import { PROCEDURE_KIND_META, type ProcedureKind } from '@/lib/types';
+import { showAlert } from '@/lib/alert';
 
 const KIND_ORDER: ProcedureKind[] = [
   'spray',
@@ -67,12 +67,12 @@ export default function TreatmentForm() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Введите название', 'Например: «Миноксидил» или «Финастерид».');
+      showAlert('Введите название', 'Например: «Миноксидил» или «Финастерид».');
       return;
     }
     const amount = Number(amountStr.replace(',', '.'));
     if (!amount || amount <= 0) {
-      Alert.alert('Введите дозу', 'Например: 5 капель, 1 мг, 10 распылений.');
+      showAlert('Введите дозу', 'Например: 5 капель, 1 мг, 10 распылений.');
       return;
     }
     const validTimes = times.filter(isValidTime).map(normalizeTime);
@@ -95,7 +95,7 @@ export default function TreatmentForm() {
 
   const handleDelete = () => {
     if (!editing) return;
-    Alert.alert('Удалить лечение?', 'Также удалится история отметок.', [
+    showAlert('Удалить лечение?', 'Также удалится история отметок.', [
       { text: 'Отмена', style: 'cancel' },
       {
         text: 'Удалить',
@@ -111,7 +111,7 @@ export default function TreatmentForm() {
   const handleAddTime = () => {
     const t = newTime.trim();
     if (!isValidTime(t)) {
-      Alert.alert('Неверное время', 'Используйте формат ЧЧ:ММ, например 09:30.');
+      showAlert('Неверное время', 'Используйте формат ЧЧ:ММ, например 09:30.');
       return;
     }
     const norm = normalizeTime(t);
