@@ -21,10 +21,11 @@ export type PhotoZone =
   | 'other';
 
 export type ProcedureKind =
+  | 'lotion' // лосьоны (в т.ч. брендовые: Vikinord, Minoxidil-based)
   | 'spray' // миноксидил, любые спреи
-  | 'pill' // финастерид, витамины
+  | 'pill' // Vikinord 15%, витамины
   | 'massage' // массаж кожи головы
-  | 'derma-roller' // дермароллер
+  | 'derma-roller' // дермароллер (часто в комбо с лосьоном/спреем)
   | 'shampoo' // лечебный шампунь
   | 'oil' // масла
   | 'other';
@@ -32,7 +33,13 @@ export type ProcedureKind =
 export type Procedure = {
   id: string;
   name: string; // "Миноксидил"
-  kind: ProcedureKind;
+  /**
+   * One or more kinds. Multi-select because common real-world routines
+   * combine them — e.g. "lotion + dermaroller" is a single procedure
+   * from the user's perspective. UI shows the first kind's icon; extras
+   * are rendered as a small badge.
+   */
+  kinds: ProcedureKind[];
   amount: number; // 10
   unit: string; // "распыления", "мг", "капель", "минут"
   frequencyPerDay: number; // 1, 2, 3
@@ -96,6 +103,7 @@ export const PROCEDURE_KIND_META: Record<
   ProcedureKind,
   { label: string; icon: string; defaultUnit: string }
 > = {
+  lotion: { label: 'Лосьон', icon: 'water-opacity', defaultUnit: 'капель' },
   spray: { label: 'Спрей', icon: 'spray-bottle', defaultUnit: 'распыления' },
   pill: { label: 'Таблетки', icon: 'pill', defaultUnit: 'мг' },
   massage: { label: 'Массаж', icon: 'hand-back-right', defaultUnit: 'минут' },

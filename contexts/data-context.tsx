@@ -95,13 +95,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [procedures, procedureLogs, photos, journal, profile] = await Promise.all([
+      const [rawProcedures, procedureLogs, photos, journal, profile] = await Promise.all([
         ProceduresStore.list(),
         LogsStore.list(),
         PhotosStore.list(),
         JournalStore.list(),
         ProfileStore.get(),
       ]);
+      // One-shot migration: older local records had `kind: ProcedureKind`.
+      // Coerce them to `kinds: [kind]` so the new multi-select code doesn't
+      // see undefined. No-op on already-migrated records.
+      const procedures = rawProcedures.map((p) => {
+        const anyP = p as Procedure & { kind?: string };
+        if (!anyP.kinds || anyP.kinds.length === 0) {
+          return { ...p, kinds: anyP.kind ? [anyP.kind as Procedure['kinds'][number]] : ['other' as const] };
+        }
+        return p;
+      });
       if (cancelled) return;
       setState({
         ready: true,
@@ -254,7 +264,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ]);
       // Cancel notifications for this procedure
       await rescheduleProcedure(
-        { id, name: '', kind: 'other', amount: 0, unit: '', frequencyPerDay: 0, reminderTimes: [], createdAt: '' },
+        { id, name: '', kinds: ['other'], amount: 0, unit: '', frequencyPerDay: 0, reminderTimes: [], createdAt: '' },
         false,
       );
       if (userId) Cloud.deleteProcedure(id, userId);

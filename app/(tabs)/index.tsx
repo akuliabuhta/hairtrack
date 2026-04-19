@@ -370,7 +370,8 @@ export default function DailyScreen() {
             procedures.map((p, idx) => {
               const log = logs.find((l) => l.procedureId === p.id);
               const done = log?.count ?? 0;
-              const meta = PROCEDURE_KIND_META[p.kind];
+              const primaryKind = p.kinds?.[0] ?? 'other';
+              const meta = PROCEDURE_KIND_META[primaryKind];
               const complete = done >= p.frequencyPerDay;
               return (
                 <Pressable

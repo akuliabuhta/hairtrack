@@ -30,7 +30,8 @@ create table if not exists public.procedures (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
-  kind text not null check (kind in ('spray','pill','massage','derma-roller','shampoo','oil','other')),
+  -- Multi-select: a single routine can combine e.g. лосьон + дермароллер.
+  kinds text[] not null default array['other']::text[],
   amount numeric not null default 1,
   unit text not null default 'раз',
   frequency_per_day int not null default 1 check (frequency_per_day between 1 and 12),
@@ -38,7 +39,11 @@ create table if not exists public.procedures (
   notes text,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  constraint procedures_kinds_values_check check (
+    kinds <@ array['lotion','spray','pill','massage','derma-roller','shampoo','oil','other']::text[]
+    and array_length(kinds, 1) >= 1
+  )
 );
 create index if not exists procedures_user_idx on public.procedures(user_id);
 

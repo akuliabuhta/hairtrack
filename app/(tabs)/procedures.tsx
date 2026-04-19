@@ -101,22 +101,38 @@ export default function ProceduresScreen() {
           </View>
         ) : (
           procedures.map((p) => {
-            const meta = PROCEDURE_KIND_META[p.kind];
+            const primaryKind = p.kinds?.[0] ?? 'other';
+            const meta = PROCEDURE_KIND_META[primaryKind];
+            const extraKinds = (p.kinds ?? []).slice(1);
             return (
               <Pressable
                 key={p.id}
                 onPress={() => handleEdit(p.id)}
                 style={[styles.treatmentCard, { backgroundColor: palette.surface }]}>
-                <View
-                  style={[
-                    styles.cardIcon,
-                    { backgroundColor: palette.surfaceElevated },
-                  ]}>
-                  <MaterialCommunityIcons
-                    name={meta.icon as any}
-                    size={22}
-                    color={palette.text}
-                  />
+                <View style={styles.cardIconWrap}>
+                  <View
+                    style={[
+                      styles.cardIcon,
+                      { backgroundColor: palette.surfaceElevated },
+                    ]}>
+                    <MaterialCommunityIcons
+                      name={meta.icon as any}
+                      size={22}
+                      color={palette.text}
+                    />
+                  </View>
+                  {extraKinds.length > 0 && (
+                    <View
+                      style={[
+                        styles.kindBadge,
+                        {
+                          backgroundColor: palette.accent,
+                          borderColor: palette.surface,
+                        },
+                      ]}>
+                      <Text style={styles.kindBadgeText}>+{extraKinds.length}</Text>
+                    </View>
+                  )}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.treatmentName, { color: palette.text }]}>
@@ -134,6 +150,20 @@ export default function ProceduresScreen() {
                       {p.frequencyPerDay} × раз в день
                     </Text>
                   </View>
+                  {extraKinds.length > 0 && (
+                    <Text
+                      style={[
+                        styles.metaText,
+                        { color: palette.textMuted, marginTop: 2, fontSize: 12 },
+                      ]}>
+                      +{' '}
+                      {extraKinds
+                        .map((k) => PROCEDURE_KIND_META[k]?.label ?? '')
+                        .filter(Boolean)
+                        .join(', ')
+                        .toLowerCase()}
+                    </Text>
+                  )}
                 </View>
                 <Pressable hitSlop={8} onPress={() => handleMenu(p.id, p.name)}>
                   <Ionicons
@@ -180,12 +210,34 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     gap: Spacing.md,
   },
+  cardIconWrap: {
+    width: 44,
+    height: 44,
+    position: 'relative',
+  },
   cardIcon: {
     width: 44,
     height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  kindBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kindBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   treatmentName: { fontSize: 19, fontWeight: '600' },
   metaRow: { flexDirection: 'row', marginTop: 4 },

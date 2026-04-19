@@ -19,7 +19,10 @@ import { useProcedures } from '@/contexts/data-context';
 import { PROCEDURE_KIND_META, type ProcedureKind } from '@/lib/types';
 import { showAlert } from '@/lib/alert';
 
+// Order matters — 'lotion' first because it's the common starting point
+// (many Vikinord-style treatments are lotions).
 const KIND_ORDER: ProcedureKind[] = [
+  'lotion',
   'spray',
   'pill',
   'oil',
@@ -53,17 +56,34 @@ export default function TreatmentForm() {
   );
 
   const [name, setName] = useState(editing?.name ?? '');
-  const [kind, setKind] = useState<ProcedureKind>(editing?.kind ?? 'spray');
+  const [kinds, setKinds] = useState<ProcedureKind[]>(
+    editing?.kinds && editing.kinds.length > 0 ? editing.kinds : ['lotion'],
+  );
   const [amountStr, setAmountStr] = useState(String(editing?.amount ?? 10));
-  const [unit, setUnit] = useState(editing?.unit ?? PROCEDURE_KIND_META[kind].defaultUnit);
+  const [unit, setUnit] = useState(
+    editing?.unit ?? PROCEDURE_KIND_META[kinds[0] ?? 'lotion'].defaultUnit,
+  );
   const [frequency, setFrequency] = useState(editing?.frequencyPerDay ?? 2);
   const [times, setTimes] = useState<string[]>(editing?.reminderTimes ?? ['09:00', '21:00']);
   const [notes, setNotes] = useState(editing?.notes ?? '');
   const [newTime, setNewTime] = useState('');
 
+  // When the primary kind changes (and the user hasn't typed a custom unit),
+  // swap in the matching default unit.
   useEffect(() => {
-    if (!editing) setUnit(PROCEDURE_KIND_META[kind].defaultUnit);
-  }, [kind, editing]);
+    if (!editing && kinds[0]) setUnit(PROCEDURE_KIND_META[kinds[0]].defaultUnit);
+  }, [kinds, editing]);
+
+  const toggleKind = (k: ProcedureKind) => {
+    setKinds((prev) => {
+      if (prev.includes(k)) {
+        // Can't deselect the last one — at least one kind must remain.
+        if (prev.length === 1) return prev;
+        return prev.filter((x) => x !== k);
+      }
+      return [...prev, k];
+    });
+  };
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -78,9 +98,9 @@ export default function TreatmentForm() {
     const validTimes = times.filter(isValidTime).map(normalizeTime);
     const payload = {
       name: name.trim(),
-      kind,
+      kinds,
       amount,
-      unit: unit.trim() || PROCEDURE_KIND_META[kind].defaultUnit,
+      unit: unit.trim() || PROCEDURE_KIND_META[kinds[0] ?? 'other'].defaultUnit,
       frequencyPerDay: frequency,
       reminderTimes: validTimes,
       notes: notes.trim() || undefined,
@@ -146,16 +166,19 @@ export default function TreatmentForm() {
           ]}
         />
 
-        {/* Kind */}
+        {/* Kind — multi-select: can combine (e.g. lotion + dermaroller) */}
         <Text style={[styles.label, { color: palette.text }]}>Тип</Text>
+        <Text style={[styles.hint, { color: palette.textMuted }]}>
+          Можно выбрать несколько (например лосьон + дермароллер)
+        </Text>
         <View style={styles.kindGrid}>
           {KIND_ORDER.map((k) => {
             const meta = PROCEDURE_KIND_META[k];
-            const selected = k === kind;
+            const selected = kinds.includes(k);
             return (
               <Pressable
                 key={k}
-                onPress={() => setKind(k)}
+                onPress={() => toggleKind(k)}
                 style={[
                   styles.kindCell,
                   {
@@ -201,7 +224,7 @@ export default function TreatmentForm() {
             <TextInput
               value={unit}
               onChangeText={setUnit}
-              placeholder={PROCEDURE_KIND_META[kind].defaultUnit}
+              placeholder={PROCEDURE_KIND_META[kinds[0] ?? 'other'].defaultUnit}
               placeholderTextColor={palette.textMuted}
               style={[
                 styles.input,
@@ -349,6 +372,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: Spacing.lg,
+    marginBottom: Spacing.sm,
+  },
+  hint: {
+    fontSize: 12,
+    marginTop: -4,
     marginBottom: Spacing.sm,
   },
   input: {

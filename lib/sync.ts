@@ -40,7 +40,7 @@ function procedureToRow(p: Procedure, userId: string): Row {
     id: p.id,
     user_id: userId,
     name: p.name,
-    kind: p.kind,
+    kinds: p.kinds,
     amount: p.amount,
     unit: p.unit,
     frequency_per_day: p.frequencyPerDay,
@@ -52,10 +52,14 @@ function procedureToRow(p: Procedure, userId: string): Row {
 }
 
 function rowToProcedure(r: Row): Procedure {
+  // Back-compat: accept either a `kinds` array or a legacy single `kind`.
+  const kinds =
+    (r.kinds as ProcedureKind[] | null | undefined) ??
+    (r.kind ? [r.kind as ProcedureKind] : ['other']);
   return {
     id: String(r.id),
     name: String(r.name),
-    kind: r.kind as ProcedureKind,
+    kinds: kinds.length > 0 ? kinds : ['other'],
     amount: Number(r.amount),
     unit: String(r.unit),
     frequencyPerDay: Number(r.frequency_per_day),
