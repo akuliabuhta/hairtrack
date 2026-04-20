@@ -69,6 +69,7 @@ type Actions = {
 
   // Photos
   addPhoto: (input: Omit<Photo, 'id' | 'createdAt'>) => Promise<Photo>;
+  updatePhoto: (id: string, patch: Partial<Photo>) => Promise<void>;
   deletePhoto: (id: string) => Promise<void>;
 
   // Journal
@@ -523,6 +524,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     [userId],
   );
 
+  const updatePhoto = useCallback<Actions['updatePhoto']>(
+    async (id, patch) => {
+      let nextList: Photo[] = [];
+      let updated: Photo | undefined;
+      setState((prev) => {
+        nextList = prev.photos.map((p) => {
+          if (p.id !== id) return p;
+          updated = { ...p, ...patch };
+          return updated;
+        });
+        return { ...prev, photos: nextList };
+      });
+      await PhotosStore.save(nextList);
+      if (userId && updated) Cloud.pushPhoto(updated, userId);
+    },
+    [userId],
+  );
+
   const deletePhoto = useCallback<Actions['deletePhoto']>(
     async (id) => {
       let toDelete: Photo | undefined;
@@ -628,6 +647,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setProcedureCount,
       tickProcedure,
       addPhoto,
+      updatePhoto,
       deletePhoto,
       upsertJournal,
       deleteJournal,
@@ -642,6 +662,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setProcedureCount,
       tickProcedure,
       addPhoto,
+      updatePhoto,
       deletePhoto,
       upsertJournal,
       deleteJournal,
@@ -680,7 +701,7 @@ export function useProcedureLogs(day: DayKey = dayKey()) {
 }
 
 export function usePhotos() {
-  const { photos, photoUrls, addPhoto, deletePhoto } = useData();
+  const { photos, photoUrls, addPhoto, updatePhoto, deletePhoto } = useData();
   /**
    * Return the best URI we have for a photo right now.
    *  - Cloud signed URL wins when we have a storageKey and the signed URL
@@ -705,7 +726,7 @@ export function usePhotos() {
     }
     return null;
   };
-  return { photos, addPhoto, deletePhoto, photoUrls, resolveUri };
+  return { photos, addPhoto, updatePhoto, deletePhoto, photoUrls, resolveUri };
 }
 
 export function useJournal() {

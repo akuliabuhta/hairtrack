@@ -32,7 +32,7 @@ export default function PhotoDetail() {
   const palette = Colors[colorScheme];
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { photos, addPhoto, deletePhoto, resolveUri } = usePhotos();
+  const { photos, updatePhoto, deletePhoto, resolveUri } = usePhotos();
 
   const photo = useMemo(() => photos.find((p) => p.id === id), [photos, id]);
   const [zone, setZone] = useState<PhotoZone>(photo?.zone ?? 'other');
@@ -47,21 +47,11 @@ export default function PhotoDetail() {
   }
 
   const handleSave = async () => {
-    // Photos are append-only in our data model; if zone or note changed,
-    // delete the old record and add a new one with the same uri but updated metadata.
     if (zone === photo.zone && (note ?? '') === (photo.note ?? '')) {
       router.back();
       return;
     }
-    await addPhoto({
-      uri: photo.uri,
-      date: photo.date,
-      zone,
-      note: note.trim() || undefined,
-      width: photo.width,
-      height: photo.height,
-    });
-    await deletePhoto(photo.id);
+    await updatePhoto(photo.id, { zone, note: note.trim() || undefined });
     router.back();
   };
 
