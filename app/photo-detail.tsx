@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -37,6 +38,7 @@ export default function PhotoDetail() {
   const photo = useMemo(() => photos.find((p) => p.id === id), [photos, id]);
   const [zone, setZone] = useState<PhotoZone>(photo?.zone ?? 'other');
   const [note, setNote] = useState(photo?.note ?? '');
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
   if (!photo) {
     return (
@@ -86,11 +88,39 @@ export default function PhotoDetail() {
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
         {(() => {
           const uri = resolveUri(photo);
+          const staticallyBroken =
+            !photo.storageKey &&
+            (!photo.uri ||
+              (Platform.OS === 'web' && photo.uri.startsWith('blob:')));
+          const broken = staticallyBroken || imageLoadFailed;
+          if (broken) {
+            return (
+              <View
+                style={[
+                  styles.brokenHero,
+                  { backgroundColor: palette.surface },
+                ]}>
+                <MaterialCommunityIcons
+                  name="cloud-alert-outline"
+                  size={56}
+                  color={palette.warning}
+                />
+                <Text style={[styles.brokenTitle, { color: palette.text }]}>
+                  Это фото не загрузилось в облако
+                </Text>
+                <Text style={[styles.brokenBody, { color: palette.textSecondary }]}>
+                  Оригинал больше недоступен (например, его не добили в R2
+                  из-за потери сети). Удалите запись ниже.
+                </Text>
+              </View>
+            );
+          }
           return (
             <Image
               source={uri ? { uri } : undefined}
               style={styles.image}
               contentFit="cover"
+              onError={() => setImageLoadFailed(true)}
             />
           );
         })()}
@@ -164,6 +194,24 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1,
     backgroundColor: '#000',
+  },
+  brokenHero: {
+    width: '100%',
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  brokenTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  brokenBody: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
   },
   body: {
     padding: Spacing.lg,

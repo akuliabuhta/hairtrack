@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -44,6 +45,22 @@ function diffDays(a: string, b: string): number {
   return Math.round(ms / 86_400_000);
 }
 
+/**
+ * A photo we can't display and can't recover. Two cases:
+ *  1. Static: no R2 storageKey AND the local `uri` is gone (missing, or
+ *     a web `blob:` from a past session that 404s after reload).
+ *  2. Runtime: storageKey exists but the object is actually missing from
+ *     R2 (upload metadata landed but the PUT failed) — detected by the
+ *     Image's onError and tracked in `runtimeFailedIds`.
+ */
+function isBrokenPhoto(p: Photo, runtimeFailedIds?: Set<string>): boolean {
+  if (runtimeFailedIds?.has(p.id)) return true;
+  if (p.storageKey) return false;
+  if (!p.uri) return true;
+  if (Platform.OS === 'web' && p.uri.startsWith('blob:')) return true;
+  return false;
+}
+
 export default function ProgressScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
@@ -54,6 +71,18 @@ export default function ProgressScreen() {
   const [beforeId, setBeforeId] = useState<string | null>(null);
   const [afterId, setAfterId] = useState<string | null>(null);
   const [picking, setPicking] = useState<'before' | 'after' | null>(null);
+  // Photo IDs whose <Image> actually failed to load (e.g. R2 object
+  // missing despite metadata claiming storageKey). Populated via onError.
+  const [runtimeFailedIds, setRuntimeFailedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const markBroken = (id: string) =>
+    setRuntimeFailedIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
 
   const filtered = useMemo(() => {
     const list = zoneFilter === 'all' ? photos : photos.filter((p) => p.zone === zoneFilter);
@@ -61,9 +90,13 @@ export default function ProgressScreen() {
     return [...list].sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [photos, zoneFilter]);
 
-  const byOldest = useMemo(
-    () => [...filtered].sort((a, b) => (a.date > b.date ? 1 : -1)),
-    [filtered],
+  // Auto-pair skips broken photos — there's no image to show for them.
+  const byOldestUsable = useMemo(
+    () =>
+      [...filtered]
+        .filter((p) => !isBrokenPhoto(p, runtimeFailedIds))
+        .sort((a, b) => (a.date > b.date ? 1 : -1)),
+    [filtered, runtimeFailedIds],
   );
 
   // Drop manual selections that aren't in the current filter anymore.
@@ -72,10 +105,10 @@ export default function ProgressScreen() {
     if (afterId && !filtered.some((p) => p.id === afterId)) setAfterId(null);
   }, [filtered, beforeId, afterId]);
 
-  const autoBefore = byOldest[0];
+  const autoBefore = byOldestUsable[0];
   const autoAfter =
-    byOldest[byOldest.length - 1]?.id !== autoBefore?.id
-      ? byOldest[byOldest.length - 1]
+    byOldestUsable[byOldestUsable.length - 1]?.id !== autoBefore?.id
+      ? byOldestUsable[byOldestUsable.length - 1]
       : undefined;
 
   const beforePhoto: Photo | undefined =
@@ -204,6 +237,8 @@ export default function ProgressScreen() {
             <BeforeAfterSlider
               beforeUri={resolveUri(beforePhoto) ?? ''}
               afterUri={resolveUri(afterPhoto) ?? ''}
+              onBeforeError={() => markBroken(beforePhoto.id)}
+              onAfterError={() => markBroken(afterPhoto.id)}
             />
           </View>
         )}
@@ -213,6 +248,7 @@ export default function ProgressScreen() {
         <View style={styles.grid}>
           {filtered.map((p) => {
             const uri = resolveUri(p);
+            const broken = isBrokenPhoto(p, runtimeFailedIds);
             return (
               <Pressable
                 key={p.id}
@@ -224,7 +260,24 @@ export default function ProgressScreen() {
                   source={uri ? { uri } : undefined}
                   style={[styles.tile, { backgroundColor: palette.surface }]}
                   contentFit="cover"
+                  onError={() => markBroken(p.id)}
                 />
+                {broken && (
+                  <View
+                    style={[
+                      styles.brokenOverlay,
+                      { backgroundColor: palette.surface },
+                    ]}>
+                    <MaterialCommunityIcons
+                      name="cloud-alert-outline"
+                      size={28}
+                      color={palette.warning}
+                    />
+                    <Text style={[styles.brokenText, { color: palette.textSecondary }]}>
+                      Не загружено
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.tileBadge}>
                   <Text style={styles.tileBadgeText}>{p.date.slice(5)}</Text>
                 </View>
@@ -256,22 +309,24 @@ export default function ProgressScreen() {
             <View style={styles.grid}>
               {filtered.map((p) => {
                 const uri = resolveUri(p);
+                const broken = isBrokenPhoto(p, runtimeFailedIds);
                 const currentId = picking === 'before' ? beforePhoto?.id : afterPhoto?.id;
                 const isCurrent = p.id === currentId;
                 const isOtherSide =
                   picking === 'before'
                     ? p.id === afterPhoto?.id
                     : p.id === beforePhoto?.id;
+                const disabled = isOtherSide || broken;
                 return (
                   <Pressable
                     key={p.id}
-                    disabled={isOtherSide}
+                    disabled={disabled}
                     onPress={() => {
                       if (picking === 'before') setBeforeId(p.id);
                       else setAfterId(p.id);
                       setPicking(null);
                     }}
-                    style={[styles.tileWrap, isOtherSide && { opacity: 0.3 }]}>
+                    style={[styles.tileWrap, disabled && { opacity: 0.3 }]}>
                     <Image
                       source={uri ? { uri } : undefined}
                       style={[
@@ -280,7 +335,24 @@ export default function ProgressScreen() {
                         isCurrent && { borderColor: palette.accent, borderWidth: 3 },
                       ]}
                       contentFit="cover"
+                      onError={() => markBroken(p.id)}
                     />
+                    {broken && (
+                      <View
+                        style={[
+                          styles.brokenOverlay,
+                          { backgroundColor: palette.surface },
+                        ]}>
+                        <MaterialCommunityIcons
+                          name="cloud-alert-outline"
+                          size={28}
+                          color={palette.warning}
+                        />
+                        <Text style={[styles.brokenText, { color: palette.textSecondary }]}>
+                          Не загружено
+                        </Text>
+                      </View>
+                    )}
                     <View style={styles.tileBadge}>
                       <Text style={styles.tileBadgeText}>{p.date.slice(5)}</Text>
                     </View>
@@ -389,6 +461,21 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  brokenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  brokenText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   grid: {
     paddingHorizontal: Spacing.lg,

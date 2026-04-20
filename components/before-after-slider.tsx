@@ -24,6 +24,8 @@ type Props = {
   afterUri: string;
   beforeLabel?: string;
   afterLabel?: string;
+  onBeforeError?: () => void;
+  onAfterError?: () => void;
 };
 
 export function BeforeAfterSlider({
@@ -31,6 +33,8 @@ export function BeforeAfterSlider({
   afterUri,
   beforeLabel = 'До',
   afterLabel = 'После',
+  onBeforeError,
+  onAfterError,
 }: Props) {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
@@ -68,7 +72,12 @@ export function BeforeAfterSlider({
   return (
     <View style={styles.wrap} onLayout={onLayout}>
       {/* After (bottom) */}
-      <Image source={{ uri: afterUri }} style={styles.image} contentFit="cover" />
+      <Image
+        source={{ uri: afterUri }}
+        style={styles.image}
+        contentFit="cover"
+        onError={onAfterError}
+      />
 
       {/* Before (top, clipped to position) */}
       <View style={[styles.beforeClip, { width: width * position }]}>
@@ -76,6 +85,7 @@ export function BeforeAfterSlider({
           source={{ uri: beforeUri }}
           style={[styles.image, { width }]}
           contentFit="cover"
+          onError={onBeforeError}
         />
       </View>
 
