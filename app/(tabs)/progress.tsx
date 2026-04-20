@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -49,6 +50,10 @@ export default function ProgressScreen() {
   const router = useRouter();
   const { photos, resolveUri } = usePhotos();
   const [zoneFilter, setZoneFilter] = useState<'all' | PhotoZone>('all');
+  // null = auto (oldest for "before", newest for "after").
+  const [beforeId, setBeforeId] = useState<string | null>(null);
+  const [afterId, setAfterId] = useState<string | null>(null);
+  const [picking, setPicking] = useState<'before' | 'after' | null>(null);
 
   const filtered = useMemo(() => {
     const list = zoneFilter === 'all' ? photos : photos.filter((p) => p.zone === zoneFilter);
@@ -61,11 +66,29 @@ export default function ProgressScreen() {
     [filtered],
   );
 
-  const beforePhoto: Photo | undefined = byOldest[0];
-  const afterPhoto: Photo | undefined =
-    byOldest[byOldest.length - 1]?.id !== beforePhoto?.id
+  // Drop manual selections that aren't in the current filter anymore.
+  useEffect(() => {
+    if (beforeId && !filtered.some((p) => p.id === beforeId)) setBeforeId(null);
+    if (afterId && !filtered.some((p) => p.id === afterId)) setAfterId(null);
+  }, [filtered, beforeId, afterId]);
+
+  const autoBefore = byOldest[0];
+  const autoAfter =
+    byOldest[byOldest.length - 1]?.id !== autoBefore?.id
       ? byOldest[byOldest.length - 1]
       : undefined;
+
+  const beforePhoto: Photo | undefined =
+    (beforeId && filtered.find((p) => p.id === beforeId)) || autoBefore;
+  const afterPhoto: Photo | undefined =
+    (afterId && filtered.find((p) => p.id === afterId)) ||
+    (autoAfter && autoAfter.id !== beforePhoto?.id ? autoAfter : undefined);
+
+  const isManual = beforeId !== null || afterId !== null;
+  const resetPair = () => {
+    setBeforeId(null);
+    setAfterId(null);
+  };
 
   if (photos.length === 0) {
     return (
@@ -134,11 +157,49 @@ export default function ProgressScreen() {
         {/* Before/After */}
         {beforePhoto && afterPhoto && (
           <View style={styles.compareCard}>
-            <Text style={[styles.compareTitle, { color: palette.text }]}>
-              До и после
-            </Text>
+            <View style={styles.compareHeaderRow}>
+              <Text style={[styles.compareTitle, { color: palette.text }]}>
+                До и после
+              </Text>
+              {isManual && (
+                <Pressable onPress={resetPair} hitSlop={8}>
+                  <Text style={[styles.resetLink, { color: palette.accent }]}>
+                    Сбросить
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+            <View style={styles.pairRow}>
+              <Pressable
+                onPress={() => setPicking('before')}
+                style={[styles.pairPill, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                <Text style={[styles.pairLabel, { color: palette.textMuted }]}>До</Text>
+                <View style={styles.pairDateRow}>
+                  <Text style={[styles.pairDate, { color: palette.text }]}>
+                    {beforePhoto.date}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color={palette.textMuted} />
+                </View>
+              </Pressable>
+              <MaterialCommunityIcons
+                name="arrow-right"
+                size={16}
+                color={palette.textMuted}
+              />
+              <Pressable
+                onPress={() => setPicking('after')}
+                style={[styles.pairPill, { backgroundColor: palette.surface, borderColor: palette.border }]}>
+                <Text style={[styles.pairLabel, { color: palette.textMuted }]}>После</Text>
+                <View style={styles.pairDateRow}>
+                  <Text style={[styles.pairDate, { color: palette.text }]}>
+                    {afterPhoto.date}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color={palette.textMuted} />
+                </View>
+              </Pressable>
+            </View>
             <Text style={[styles.compareMeta, { color: palette.textSecondary }]}>
-              {beforePhoto.date} → {afterPhoto.date} · {diffDays(beforePhoto.date, afterPhoto.date)} дней
+              {diffDays(beforePhoto.date, afterPhoto.date)} дней между снимками
             </Text>
             <BeforeAfterSlider
               beforeUri={resolveUri(beforePhoto) ?? ''}
@@ -161,7 +222,7 @@ export default function ProgressScreen() {
                 style={styles.tileWrap}>
                 <Image
                   source={uri ? { uri } : undefined}
-                  style={styles.tile}
+                  style={[styles.tile, { backgroundColor: palette.surface }]}
                   contentFit="cover"
                 />
                 <View style={styles.tileBadge}>
@@ -172,6 +233,69 @@ export default function ProgressScreen() {
           })}
         </View>
       </ScrollView>
+
+      {/* Pair picker modal */}
+      <Modal
+        visible={picking !== null}
+        animationType="slide"
+        onRequestClose={() => setPicking(null)}
+        transparent={false}>
+        <SafeAreaView
+          edges={['top', 'left', 'right', 'bottom']}
+          style={[styles.safe, { backgroundColor: palette.background }]}>
+          <View style={styles.pickerHeader}>
+            <Pressable onPress={() => setPicking(null)} hitSlop={8}>
+              <Ionicons name="close" size={28} color={palette.text} />
+            </Pressable>
+            <Text style={[styles.pickerTitle, { color: palette.text }]}>
+              {picking === 'before' ? 'Выбрать «До»' : 'Выбрать «После»'}
+            </Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
+            <View style={styles.grid}>
+              {filtered.map((p) => {
+                const uri = resolveUri(p);
+                const currentId = picking === 'before' ? beforePhoto?.id : afterPhoto?.id;
+                const isCurrent = p.id === currentId;
+                const isOtherSide =
+                  picking === 'before'
+                    ? p.id === afterPhoto?.id
+                    : p.id === beforePhoto?.id;
+                return (
+                  <Pressable
+                    key={p.id}
+                    disabled={isOtherSide}
+                    onPress={() => {
+                      if (picking === 'before') setBeforeId(p.id);
+                      else setAfterId(p.id);
+                      setPicking(null);
+                    }}
+                    style={[styles.tileWrap, isOtherSide && { opacity: 0.3 }]}>
+                    <Image
+                      source={uri ? { uri } : undefined}
+                      style={[
+                        styles.tile,
+                        { backgroundColor: palette.surface },
+                        isCurrent && { borderColor: palette.accent, borderWidth: 3 },
+                      ]}
+                      contentFit="cover"
+                    />
+                    <View style={styles.tileBadge}>
+                      <Text style={styles.tileBadgeText}>{p.date.slice(5)}</Text>
+                    </View>
+                    {isCurrent && (
+                      <View style={[styles.tileCheck, { backgroundColor: palette.accent }]}>
+                        <Ionicons name="checkmark" size={14} color={palette.accentText} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -218,8 +342,54 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
   },
-  compareTitle: { fontSize: 19, fontWeight: '700', marginBottom: 4 },
-  compareMeta: { fontSize: 14, marginBottom: Spacing.md },
+  compareHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  compareTitle: { fontSize: 19, fontWeight: '700' },
+  compareMeta: { fontSize: 14, marginTop: Spacing.sm, marginBottom: Spacing.md },
+  resetLink: { fontSize: 14, fontWeight: '600' },
+  pairRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  pairPill: {
+    flex: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    gap: 2,
+  },
+  pairLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  pairDateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  pairDate: { fontSize: 15, fontWeight: '600' },
+  pickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  pickerTitle: { fontSize: 17, fontWeight: '700' },
+  tileCheck: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   grid: {
     paddingHorizontal: Spacing.lg,
     flexDirection: 'row',
@@ -231,7 +401,6 @@ const styles = StyleSheet.create({
     width: TILE,
     height: TILE,
     borderRadius: Radius.md,
-    backgroundColor: '#EEE',
   },
   tileBadge: {
     position: 'absolute',

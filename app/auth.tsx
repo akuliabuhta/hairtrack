@@ -168,7 +168,11 @@ export default function AuthScreen() {
           </Pressable>
         </ScrollView>
         {submitting && (
-          <View style={styles.loadingOverlay}>
+          <View
+            style={[
+              styles.loadingOverlay,
+              { backgroundColor: `${palette.background}B3` },
+            ]}>
             <ActivityIndicator color={palette.accent} size="large" />
           </View>
         )}
@@ -242,6 +246,5 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.3)',
   },
 });

@@ -1,121 +1,122 @@
-# Hairtrack — отчёт о ночной работе
+# Hairtrack — статус проекта
 
-**Дата:** 2026-04-19  
-**Состояние:** dev-сервер запущен на http://localhost:8081, бандл собирается без ошибок, TypeScript чистый.
+**Дата обновления:** 2026-04-20
+**Состояние:** dev-сервер собирается, TypeScript чистый, 25 коммитов в `main`.
+**Текущий блокер:** Apple Developer Program оплачен 2026-04-18, но enrollment ещё обрабатывается на стороне Apple (платёж подтверждён банком, Apple показывает «Purchase your membership»).
 
 ---
 
-## ✅ Что сделано за ночь
+## ✅ Что уже работает
 
 ### Инфраструктура
-- **Node.js 24 LTS** установлен в `~/.local/node` (без sudo, портативно)
-- **Expo + TypeScript** проект `hairtrack/` создан, в нём 5-вкладочная навигация на `expo-router`
-- **Git** инициализирован, есть первый осмысленный коммит со скаффолдом
-- **Брендовая иконка приложения** сгенерирована скриптом `scripts/generate-icons.mjs`
-  (синяя «H»-марка для iOS/Android adaptive/foreground/background/monochrome/favicon).
-  Это плейсхолдер — на финальный релиз нужен дизайнер, но React-логотипа больше нет.
-- **app.json** заполнен: bundleId, разрешения камеры/фото для iOS и Android,
-  плагины `expo-image-picker`, `expo-notifications`, `expo-sqlite`,
-  `@react-native-community/datetimepicker`.
+- **Node.js 24 LTS** в `~/.local/node`, путь прописан в `~/.zshrc`
+- **Expo SDK 54** + React Native 0.81 + React 19 + TypeScript 5.9
+- **Git**, 25 коммитов, working tree чистый
+- **EAS CLI** поставлен, `eas.json` настроен (development / preview / production профили, Supabase env уже вшиты)
+- **app.json** с bundleId, разрешениями камеры/фото, плагинами `expo-image-picker`, `expo-notifications`, `expo-sqlite`, `datetimepicker`
+
+### Облачный стек
+- **Supabase** (`lib/supabase.ts`, `contexts/auth-context.tsx`, `app/auth.tsx`)
+  - Проект: `https://dmfbqbglbhpcljuoxabd.supabase.co`
+  - Auth: email magic-link, сессия персистится через AsyncStorage
+  - Guest mode с баннером «данные остаются на устройстве»
+  - SSR-guard для Node-контекста (не падает при pre-render)
+- **Схема БД** (`supabase/schema.sql` + миграции 002–004)
+  - `procedures`, `procedure_logs`, `photos`, `journal_entries`, `profiles`, `analyses`
+  - RLS по `auth.uid()` на всех таблицах
+  - Поддержка multi-kind процедур + target zones (голова/борода/брови)
+- **Cloud sync** (`lib/sync.ts`)
+  - Push на каждую мутацию, pull на sign-in
+  - Ретраи отложенных загрузок фото при входе
+  - Защита от non-UUID local IDs и wipe-on-empty-cloud
+- **Cloudflare R2** (`supabase/R2-SETUP.md`)
+  - Bucket `hairtrack-photos` (account `06d0fc59...`)
+  - Edge-функции `photo-upload-url` / `photo-view-urls` — presigned URL, verify JWT, ownership-check по `storage_key`
+  - CORS настроен под localhost + `*.exp.direct` (для Expo tunnel)
+- **ИИ-анализ** (`supabase/functions/ai-analyze/index.ts`, `lib/ai-analyze.ts`)
+  - Edge-функция: JWT-верификация → presigned GET из R2 → base64 → Claude Sonnet 4.5 Vision → clamp + нормализация → insert в `analyses`
+  - Anthropic API key в Supabase secrets, в клиент не попадает
+  - Возвращает: Norwood stage, Ludwig stage, density%, weak zone, asymmetry%, overall score, summary, recommendations[]
 
 ### Данные и состояние
-- **`lib/types.ts`** — все доменные типы: Procedure, ProcedureLog, Photo, JournalEntry, UserProfile + мета-словари (PROCEDURE_KIND_META, PHOTO_ZONE_META, GOAL_META, SYMPTOMS_RU)
-- **`lib/storage.ts`** — AsyncStorage-обёртка (5 коллекций под namespace-ключами `@hairtrack/*/v1`)
-  + `exportAll()` для бэкапа и `clearAll()` для сброса
-- **`lib/photos.ts`** — копирование фото из cache в персистентную папку `documentDirectory/photos/`,
-  идемпотентное удаление, веб-фоллбэк (blob/data URL остаются как есть)
-- **`lib/notifications.ts`** — расписание ежедневных локальных уведомлений по процедурам,
-  ранний return на web
-- **`lib/uuid.ts`** — компактный sortable-id и `dayKey()` для буckets по дням
-- **`contexts/data-context.tsx`** — единый провайдер с типизированными хуками
-  (`useProcedures`, `useProcedureLogs`, `usePhotos`, `useJournal`, `useProfile`, `useReady`).
-  Persistence — после каждой мутации.
+- **`lib/types.ts`** — Procedure, ProcedureLog, Photo, JournalEntry, UserProfile, Analysis + мета-словари
+- **`lib/storage.ts`** — AsyncStorage под namespace `@hairtrack/*/v1` + `exportAll()` / `clearAll()`
+- **`lib/photos.ts`** — копирование в `documentDirectory/photos/`, идемпотентное удаление, web-фоллбэк
+- **`lib/photo-upload.ts`** — очередь отложенных загрузок в R2, retry-логика
+- **`lib/notifications.ts`** — расписание дневных локальных уведомлений, web-guard
+- **`lib/alert.ts`** — кросс-платформенный `showAlert` (web fallback через confirm/alert)
+- **`lib/articles.ts`** — список статей базы знаний
+- **`lib/uuid.ts`** — sortable ID + `dayKey()`
+- **`contexts/data-context.tsx`** — провайдер с типизированными хуками, persistence после каждой мутации
 
 ### Экраны
-| Экран | Файл | Что делает |
+| Экран | Файл | Статус |
 |---|---|---|
-| **Онбординг** | `app/onboarding.tsx` | 4 шага: приветствие → пол → цели (голова/борода/брови) → разрешение уведомлений. Запускается автоматически на первом запуске (`(tabs)/_layout.tsx` редиректит). |
-| **Ежедневно** | `app/(tabs)/index.tsx` | Лента дней ±15 с подписью «Сегод…», три секции: процедуры (тап = инкремент счётчика), фото (action sheet «Камера / Галерея»), журнал. Все секции реагируют на выбранный день. |
-| **Процедуры** | `app/(tabs)/procedures.tsx` | Список лечений с иконкой типа, меню «⋯» (изменить/удалить), кнопка «Добавить новое лечение», «Поделиться» (системный share-sheet с текстовой сводкой). |
-| **Прогресс** | `app/(tabs)/progress.tsx` | Фильтр по зонам (Все/Макушка/Линия роста/Виски/Сбоку/Борода/Брови/Другое), слайдер «До и после» с количеством дней между снимками, сетка миниатюр 3×N с датой. |
-| **ИИ-анализ** | `app/(tabs)/ai-analysis.tsx` | Описание + бейдж «Скоро в v1.1» + 5 фич + Alert при тапе. Не подключён к реальной нейросети — заглушка. |
-| **Настройки** | `app/(tabs)/settings.tsx` | Виджет-баннер, меню (экспорт, бэкап, обратная связь, юр-документы), переключатели уведомлений, секция «Управление данными» с кнопкой полного сброса. |
-| **Форма лечения** | `app/treatment-form.tsx` | Модалка добавления/редактирования: название, тип (7 пресетов), доза + единица, частота 1×/2×/3×/4× с автоподбором времени напоминаний, добавление/удаление времён, заметки. При сохранении — авторасписание уведомлений. |
-| **Форма журнала** | `app/journal-form.tsx` | Модалка с текстом, выбором настроения (Хорошо/Норм/Плохо) и тегами симптомов. |
-| **Деталь фото** | `app/photo-detail.tsx` | Полноэкранное превью, выбор зоны, заметка, удаление. |
+| Онбординг | `app/onboarding.tsx` | 4 шага, редирект на первый запуск, без бороды для женщин |
+| Auth | `app/auth.tsx` | Sign-in / guest mode |
+| Ежедневно | `app/(tabs)/index.tsx` | Лента ±15 дней, центрирование на «сегодня», процедуры/фото/журнал |
+| Процедуры | `app/(tabs)/procedures.tsx` | Multi-kind + target zones, меню ⋯, системный share |
+| Прогресс | `app/(tabs)/progress.tsx` | Фильтр по зонам, before/after слайдер, сетка 3×N |
+| **Статьи** | `app/(tabs)/articles.tsx` + `app/article-detail.tsx` | **Новая вкладка**, база знаний |
+| ИИ-анализ | `app/(tabs)/ai-analysis.tsx` | **Полностью рабочий**: выбор до 3 R2-фото → Claude → метрики + рекомендации + история |
+| Настройки | `app/(tabs)/settings.tsx` | Экспорт, бэкап, уведомления, сброс |
+| Форма лечения | `app/treatment-form.tsx` | Sticky-footer submit, Vikinord в примерах, multi-kind, target zones |
+| Форма журнала | `app/journal-form.tsx` | Sticky-footer submit |
+| Деталь фото | `app/photo-detail.tsx` | Зона + заметка + удаление |
 
-### Компоненты
-- **`components/ui/primary-button.tsx`** — pill-кнопка solid/ghost с иконкой и loader
-- **`components/ui/section-card.tsx`** — generic card с двумя вариантами (elevated/muted)
-- **`components/ui/screen.tsx`** — обёртка с SafeArea + ScrollView
-- **`components/before-after-slider.tsx`** — пере-через-PanResponder перетаскиваемый слайдер «до/после»
-  с двумя надписями-пилюлями. Работает на web/iOS/Android без доп. зависимостей.
-
-### Тема
-- **`constants/theme.ts`** обновлён: брендовый синий `#002FCC`, токены `Colors`, `Radius`, `Spacing`, `Fonts`,
-  отдельные оттенки для светлой/тёмной темы.
-
-### Тестовый прогон
-- Прошёл онбординг в браузерном превью (375×812):
-  - Шаг 1 «Добро пожаловать» → клик «Поехали» → шаг 2
-  - Шаг 2 «Ваш пол» → выбор «Мужской» → активируется «Дальше»
-- TypeScript проверка `tsc --noEmit` — без ошибок
-- Web-бандл (`Web Bundled`) — 1166 модулей, ошибок нет
+### Компоненты и тема
+- `components/ui/primary-button.tsx`, `section-card.tsx`, `screen.tsx`
+- `components/before-after-slider.tsx` — PanResponder-слайдер
+- `components/brand-mark.tsx` — логотип
+- **Палитра:** orange→purple gradient (последний редизайн), `logo.png` вшит как брендовая марка
+- `constants/theme.ts` — токены Colors/Radius/Spacing/Fonts, светлая и тёмная схемы
 
 ---
 
-## ⏳ Что НЕ сделано (нужно твоё участие)
+## ⏳ Блокеры и внешние зависимости
 
-| Задача | Что нужно от тебя |
-|---|---|
-| **Облачная синхронизация (Supabase)** | Создать аккаунт на supabase.com (бесплатно), создать проект, скинуть мне `URL` и `anon key` |
-| **Хранение фото в облаке (Cloudflare R2)** | Создать аккаунт на cloudflare.com, создать R2 bucket, выдать API-токен с правами на bucket. Я подключу через `aws-sdk/client-s3` (R2 совместим с S3 API) |
-| **ИИ-анализ волос** | Решить: используем Claude/OpenAI Vision API (нужен ключ + биллинг ~$5–20/мес для старта) или fine-tuned модель |
-| **Финальная иконка** | Сейчас плейсхолдер — буква «H». Нужен дизайнер либо Figma-макет, я переконвертирую |
-| **Купить Apple Developer ($99/год) и Google Play ($25 разово)** | Без этого не выложить в сторы, но можно тестить через Expo Go и EAS Build |
+| Блокер | Статус | Что ждём |
+|---|---|---|
+| **Apple Developer Program ($99)** | 💳 оплачен 2026-04-18, ждём Apple | Должно активироваться в течение 48ч после оплаты. Если к 2026-04-21 висит — тикет в Apple Support |
+| **Google Play ($25)** | ⏸ не оплачен | Когда дойдём до Android-релиза |
+| **Финальная иконка** | ⏸ плейсхолдер «H» → сейчас `logo.png` | Дизайнер или Figma-макет для App Store резолюций |
 
----
-
-## 🐛 Известные ограничения / тех-долг
-
-1. **Веб не поддерживает уведомления и SQLite.** Код есть, но `Platform.OS === 'web'` ветки делают early-return. На реальном телефоне через Expo Go всё будет работать.
-2. **Слайдер «до/после»** считает «before» как самое старое фото в выбранной зоне, «after» как самое новое. Нет UI выбора произвольных пары — это в TODO.
-3. **Тёмная тема** определена в `Colors.dark`, но на визуальный пиксель-перфект не вычитана (некоторые карточки внутри синей панели хардкодят `#FFF`/`#F2F2F7`). Полировка позже.
-4. **Виджет «Добавить виджет»** в Настройках — баннер декоративный. Реальный iOS/Android home-widget — это нативный код, не делается через Expo без EAS Build + кастомных модулей.
-5. **Локализация только русская.** Если планируешь английский/другие языки, нужно подключить `i18n-js` или `react-i18next`. Все строки сейчас захардкожены в JSX.
-6. **Photo edit (зона/заметка)** реализован хаком: «удалить старую запись + создать новую с тем же URI». Идемпотентно, но не очень красиво. Заменить на честный `updatePhoto` в DataContext — ~10 строк кода.
-7. **Дев-сервер сыпет ошибки `Cannot pipe to a closed or destroyed stream`** — это безобидная Expo-серверная штука (браузерный таб закрылся посреди ответа), на работу приложения не влияет.
+Apple / Google нужны только для публикации в сторы. Локально через Expo Go / tunnel всё работает уже сейчас.
 
 ---
 
-## 🚀 Команды для запуска
+## 🐛 Тех-долг
+
+1. **`updatePhoto` через delete+create** — в `DataContext` редактирование зоны/заметки удаляет старую запись и создаёт новую. Работает, но некрасиво. Заменить на честный `updatePhoto` (~10 строк).
+2. **Только русская локализация** — все строки в JSX. Для EN/других нужен `i18n-js` или `react-i18next`.
+3. **Widget в настройках декоративный** — настоящий iOS/Android home-widget требует нативного кода + EAS Build с кастомными модулями.
+4. **Web не поддерживает уведомления и SQLite** — `Platform.OS === 'web'` early-return. На телефоне через Expo Go всё ок.
+
+---
+
+## 🚀 Команды
 
 ```bash
-# в ~/.zshrc уже добавлен путь к node, но если нужно вручную:
-export PATH="$HOME/.local/node/bin:$PATH"
-
 cd "/Users/akulia/Claude Code/Hairtrack App/hairtrack"
 
-# Веб-превью (то, что уже запущено)
-npm run web                # http://localhost:8081
+# Веб
+npm run web                          # http://localhost:8081
 
-# Метро для Expo Go (на физическом телефоне с App Store-приложением Expo Go)
-npm run start              # покажет QR
+# Expo Go на телефоне
+npm run start                        # QR, localhost
+npx expo start --tunnel              # через ngrok, для не-домашней сети
 
-# Симуляторы (нужны Xcode / Android Studio — не установлены)
-npm run ios
-npm run android
-
-# Перегенерировать иконки
-node scripts/generate-icons.mjs
+# Когда Apple Dev активируется:
+npx eas-cli login
+npx eas-cli build:configure
+npx eas-cli build --profile preview --platform ios   # TestFlight-ready
 ```
 
 ---
 
-## 📋 Рекомендуемый порядок работы дальше
+## 📋 Что дальше
 
-1. **Сегодня (5 мин):** проверить app в браузере + Expo Go на телефоне.
-2. **Когда будут аккаунты:** Supabase + Cloudflare R2 → синк между устройствами.
-3. **Параллельно:** дизайнер делает финальную иконку и сплеш в `assets/images/`.
-4. **Перед публикацией:** Apple Developer Program + EAS Build → TestFlight → App Store / Play Store.
-5. **Через 1–2 недели бета-тестов:** включить настоящий ИИ-анализ через Vision API (модель уже подобрана — Claude Sonnet 4.5, цена ~$0.003 за анализ из 3 фото).
+1. **Ждём Apple Developer** (макс 48ч от 2026-04-18) → `eas build --profile preview --platform ios` → TestFlight
+2. **Пока ждём**: один из пунктов тех-долга (рекомендую `updatePhoto` — быстрый чистый рефакторинг)
+3. **После TestFlight**: неделя-две беты на реальном устройстве, сбор фидбэка
+4. **Перед публикацией**: финальная иконка + сплеш от дизайнера, проверка всех копирайтов / политики конфиденциальности

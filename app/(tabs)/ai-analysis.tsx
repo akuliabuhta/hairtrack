@@ -319,7 +319,11 @@ function Picker({
               <Pressable
                 key={p.id}
                 onPress={() => onToggle(p.id)}
-                style={[styles.tile, selected && { borderColor: palette.accent, borderWidth: 3 }]}>
+                style={[
+                  styles.tile,
+                  { backgroundColor: palette.surface },
+                  selected && { borderColor: palette.accent, borderWidth: 3 },
+                ]}>
                 <Image
                   source={uri ? { uri } : undefined}
                   style={styles.tileImg}
@@ -623,7 +627,6 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: Radius.md,
     overflow: 'hidden',
-    backgroundColor: '#EEE',
   },
   tileImg: { width: '100%', height: '100%' },
   tileBadge: {

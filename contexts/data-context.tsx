@@ -683,15 +683,26 @@ export function usePhotos() {
   const { photos, photoUrls, addPhoto, deletePhoto } = useData();
   /**
    * Return the best URI we have for a photo right now.
-   *  - Local file/blob URIs are preferred (no network hit).
-   *  - Otherwise a signed R2 URL if we've resolved one.
+   *  - Cloud signed URL wins when we have a storageKey and the signed URL
+   *    is resolved — it's the canonical copy and works across devices.
+   *  - Otherwise fall back to the local uri. file:// / data: / http persist
+   *    across sessions; blob: is session-scoped on web (a leftover from
+   *    upload staging) and will 404 after reload, but is still useful in
+   *    the rare case where there's no cloud copy yet.
    *  - Otherwise null; callers can show a placeholder.
    */
   const resolveUri = (p: Photo): string | null => {
-    if (p.uri && (p.uri.startsWith('file://') || p.uri.startsWith('blob:') || p.uri.startsWith('data:') || p.uri.startsWith('http'))) {
-      return p.uri;
-    }
     if (p.storageKey && photoUrls[p.storageKey]) return photoUrls[p.storageKey];
+    if (!p.storageKey && p.uri) {
+      if (
+        p.uri.startsWith('file://') ||
+        p.uri.startsWith('data:') ||
+        p.uri.startsWith('http') ||
+        p.uri.startsWith('blob:')
+      ) {
+        return p.uri;
+      }
+    }
     return null;
   };
   return { photos, addPhoto, deletePhoto, photoUrls, resolveUri };

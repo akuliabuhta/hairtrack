@@ -336,7 +336,7 @@ export default function TreatmentForm() {
             </Text>
           ) : (
             times.map((t) => (
-              <View key={t} style={styles.timeChip}>
+              <View key={t} style={[styles.timeChip, { backgroundColor: palette.surfaceElevated }]}>
                 <Ionicons name="alarm-outline" size={16} color={palette.accent} />
                 <Text style={[styles.timeChipText, { color: palette.text }]}>{t}</Text>
                 <Pressable
@@ -488,7 +488,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: '#FFF',
     borderRadius: Radius.pill,
   },
   timeChipText: {
