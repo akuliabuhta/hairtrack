@@ -30,6 +30,7 @@ const KEYS = {
   photos: '@hairtrack/photos/v1',
   journal: '@hairtrack/journal/v1',
   profile: '@hairtrack/profile/v1',
+  photoUrls: '@hairtrack/photo-urls/v1',
 } as const;
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -79,6 +80,28 @@ export const Journal = {
 export const Profile = {
   get: () => readJson<UserProfile>(KEYS.profile, DEFAULT_PROFILE),
   set: (profile: UserProfile) => writeJson(KEYS.profile, profile),
+};
+
+// ---- Photo view URLs (cache) ---------------------------------------------
+/**
+ * Cached signed R2 view URLs keyed by storageKey, plus the ISO timestamp
+ * of when we saved them. Signed URLs expire after 1h on R2, so reads
+ * must check the age and throw away anything older than ~55 min before
+ * handing it back. This exists only as a performance optimisation so
+ * reload doesn't re-invoke the edge function for every photo.
+ */
+export type CachedPhotoUrls = {
+  savedAt: string; // ISO
+  urls: Record<string, string>;
+};
+export const PhotoUrlsCache = {
+  get: () => readJson<CachedPhotoUrls | null>(KEYS.photoUrls, null),
+  set: (urls: Record<string, string>) =>
+    writeJson(KEYS.photoUrls, {
+      savedAt: new Date().toISOString(),
+      urls,
+    } satisfies CachedPhotoUrls),
+  clear: () => AsyncStorage.removeItem(KEYS.photoUrls),
 };
 
 // ---- Whole-store dump for export/backup ----------------------------------

@@ -21,6 +21,7 @@ import {
   Procedures as ProceduresStore,
   ProcedureLogs as LogsStore,
   Profile as ProfileStore,
+  PhotoUrlsCache,
 } from '@/lib/storage';
 import {
   cancelAll as cancelAllNotifications,
@@ -120,13 +121,30 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [rawProcedures, rawLogs, rawPhotos, rawJournal, profile] = await Promise.all([
-        ProceduresStore.list(),
-        LogsStore.list(),
-        PhotosStore.list(),
-        JournalStore.list(),
-        ProfileStore.get(),
-      ]);
+      const [rawProcedures, rawLogs, rawPhotos, rawJournal, profile, cachedUrls] =
+        await Promise.all([
+          ProceduresStore.list(),
+          LogsStore.list(),
+          PhotosStore.list(),
+          JournalStore.list(),
+          ProfileStore.get(),
+          PhotoUrlsCache.get(),
+        ]);
+
+      // Signed R2 URLs expire after 1h. Reuse cached ones only if they're
+      // young enough to still be valid — anything older gets dropped so
+      // we don't render broken <Image> sources.
+      const PHOTO_URL_MAX_AGE_MS = 55 * 60 * 1000;
+      const restoredPhotoUrls =
+        cachedUrls &&
+        Date.now() - new Date(cachedUrls.savedAt).getTime() < PHOTO_URL_MAX_AGE_MS
+          ? cachedUrls.urls
+          : {};
+      if (cachedUrls && Object.keys(restoredPhotoUrls).length === 0) {
+        // Stale — drop it so the next write isn't merged against an
+        // already-expired map.
+        await PhotoUrlsCache.clear();
+      }
 
       // ---- Migrations for older local records -------------------------
       // (1) Regenerate non-UUID IDs. Early builds used short base36 IDs
@@ -187,7 +205,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         photos,
         journal,
         profile,
-        photoUrls: {},
+        photoUrls: restoredPhotoUrls,
         uploadingIds: new Set(),
         uploadFailedIds: new Set(),
       });
@@ -307,7 +325,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       const fresh = await getPhotoViewUrls(missingUrlKeys);
       if (cancelled) return;
       if (Object.keys(fresh).length === 0) return;
-      setState((prev) => ({ ...prev, photoUrls: { ...prev.photoUrls, ...fresh } }));
+      setState((prev) => {
+        const mergedUrls = { ...prev.photoUrls, ...fresh };
+        // Persist to AsyncStorage so reloads reuse the same URLs and
+        // the browser can serve them from its HTTP cache.
+        PhotoUrlsCache.set(mergedUrls);
+        return { ...prev, photoUrls: mergedUrls };
+      });
     })();
     return () => {
       cancelled = true;
@@ -320,10 +344,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const id = setInterval(
       () => {
         setState((prev) => ({ ...prev, photoUrls: {} })); // force re-resolve
+        PhotoUrlsCache.clear();
       },
       45 * 60 * 1000,
     );
     return () => clearInterval(id);
+  }, [userId]);
+
+  // Drop cached photo URLs whenever the identity changes (sign-out or
+  // switch account). URLs are signed with the caller's JWT and scoped
+  // to their R2 prefix — reusing them across identities would either
+  // 403 or, worse, leak URLs that point at the previous user's files.
+  const prevUserIdRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (prevUserIdRef.current !== null && prevUserIdRef.current !== userId) {
+      setState((prev) => ({ ...prev, photoUrls: {} }));
+      PhotoUrlsCache.clear();
+    }
+    prevUserIdRef.current = userId;
   }, [userId]);
 
   // ---- Retry pending photo uploads --------------------------------------
@@ -696,6 +734,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       PhotosStore.save([]),
       JournalStore.save([]),
       ProfileStore.set(DEFAULT_PROFILE),
+      PhotoUrlsCache.clear(),
     ]);
     await cancelAllNotifications();
   }, []);
