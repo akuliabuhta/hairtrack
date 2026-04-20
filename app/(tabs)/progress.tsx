@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,6 +18,7 @@ import { BeforeAfterSlider } from '@/components/before-after-slider';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePhotos } from '@/contexts/data-context';
+import { isStaticallyBrokenPhoto } from '@/lib/photos';
 import { PHOTO_ZONE_META, type Photo, type PhotoZone } from '@/lib/types';
 
 const SCREEN_W = Dimensions.get('window').width;
@@ -46,26 +47,19 @@ function diffDays(a: string, b: string): number {
 }
 
 /**
- * A photo we can't display and can't recover. Two cases:
- *  1. Static: no R2 storageKey AND the local `uri` is gone (missing, or
- *     a web `blob:` from a past session that 404s after reload).
- *  2. Runtime: storageKey exists but the object is actually missing from
- *     R2 (upload metadata landed but the PUT failed) — detected by the
- *     Image's onError and tracked in `runtimeFailedIds`.
+ * Broken check that also folds in runtime failures (storageKey is set
+ * but the R2 object is actually missing — detected via <Image onError>).
  */
 function isBrokenPhoto(p: Photo, runtimeFailedIds?: Set<string>): boolean {
   if (runtimeFailedIds?.has(p.id)) return true;
-  if (p.storageKey) return false;
-  if (!p.uri) return true;
-  if (Platform.OS === 'web' && p.uri.startsWith('blob:')) return true;
-  return false;
+  return isStaticallyBrokenPhoto(p);
 }
 
 export default function ProgressScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const router = useRouter();
-  const { photos, resolveUri } = usePhotos();
+  const { photos, resolveUri, uploadingIds, uploadFailedIds, retryUpload } = usePhotos();
   const [zoneFilter, setZoneFilter] = useState<'all' | PhotoZone>('all');
   // null = auto (oldest for "before", newest for "after").
   const [beforeId, setBeforeId] = useState<string | null>(null);
@@ -249,6 +243,9 @@ export default function ProgressScreen() {
           {filtered.map((p) => {
             const uri = resolveUri(p);
             const broken = isBrokenPhoto(p, runtimeFailedIds);
+            const uploading = !broken && uploadingIds.has(p.id);
+            const uploadFailed =
+              !broken && !uploading && uploadFailedIds.has(p.id);
             return (
               <Pressable
                 key={p.id}
@@ -277,6 +274,31 @@ export default function ProgressScreen() {
                       Не загружено
                     </Text>
                   </View>
+                )}
+                {uploading && (
+                  <View style={styles.statusOverlay}>
+                    <ActivityIndicator color={palette.accent} />
+                  </View>
+                )}
+                {uploadFailed && (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      retryUpload(p.id);
+                    }}
+                    style={[
+                      styles.statusOverlay,
+                      { backgroundColor: 'rgba(0,0,0,0.55)' },
+                    ]}>
+                    <MaterialCommunityIcons
+                      name="cloud-refresh-outline"
+                      size={24}
+                      color={palette.accentText}
+                    />
+                    <Text style={[styles.retryText, { color: palette.accentText }]}>
+                      Повторить
+                    </Text>
+                  </Pressable>
                 )}
                 <View style={styles.tileBadge}>
                   <Text style={styles.tileBadgeText}>{p.date.slice(5)}</Text>
@@ -476,6 +498,21 @@ const styles = StyleSheet.create({
   brokenText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  statusOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  retryText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   grid: {
     paddingHorizontal: Spacing.lg,

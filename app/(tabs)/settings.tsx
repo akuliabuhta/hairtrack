@@ -19,9 +19,10 @@ import { useRouter } from 'expo-router';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useAuth } from '@/contexts/auth-context';
-import { useProfile } from '@/contexts/data-context';
+import { useProfile, usePhotos } from '@/contexts/data-context';
 import { exportAll } from '@/lib/storage';
 import { showAlert } from '@/lib/alert';
+import { isStaticallyBrokenPhoto } from '@/lib/photos';
 
 type Row = {
   id: string;
@@ -35,6 +36,29 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { profile, updateProfile, resetAll } = useProfile();
   const { user, signOut, isConfigured } = useAuth();
+  const { photos, deletePhoto } = usePhotos();
+
+  const brokenPhotos = photos.filter(isStaticallyBrokenPhoto);
+
+  const handleClearBroken = () => {
+    if (brokenPhotos.length === 0) return;
+    showAlert(
+      'Очистить сломанные фото?',
+      `Найдено ${brokenPhotos.length} фото без оригинала. Записи будут удалены навсегда (локально и в облаке).`,
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Очистить',
+          style: 'destructive',
+          onPress: async () => {
+            for (const p of brokenPhotos) {
+              await deletePhoto(p.id);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const handleExport = async () => {
     try {
@@ -229,6 +253,33 @@ export default function SettingsScreen() {
           Управление данными
         </Text>
         <View style={[styles.listCard, { backgroundColor: palette.background }]}>
+          {brokenPhotos.length > 0 && (
+            <Pressable
+              onPress={handleClearBroken}
+              style={[
+                styles.row,
+                {
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: palette.border,
+                },
+              ]}>
+              <View style={{ flex: 1, paddingRight: Spacing.md }}>
+                <Text style={[styles.rowLabel, { color: palette.text }]}>
+                  Очистить сломанные фото
+                </Text>
+                <Text style={[styles.rowSub, { color: palette.textSecondary }]}>
+                  {brokenPhotos.length === 1
+                    ? '1 фото без оригинала'
+                    : `${brokenPhotos.length} фото без оригинала`}
+                </Text>
+              </View>
+              <MaterialCommunityIcons
+                name="cloud-alert-outline"
+                size={20}
+                color={palette.warning}
+              />
+            </Pressable>
+          )}
           <Pressable onPress={handleReset} style={styles.row}>
             <Text style={[styles.rowLabel, { color: palette.danger }]}>
               Сбросить все данные

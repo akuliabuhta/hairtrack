@@ -14,7 +14,25 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
+import type { Photo } from './types';
 import { uid } from './uuid';
+
+/**
+ * Static check for a photo we can't display and can't recover:
+ *  - no R2 storageKey (upload never completed), AND
+ *  - no usable local uri (missing, or a web `blob:` from a past session
+ *    that 404s after reload).
+ *
+ * Doesn't cover the runtime case where storageKey is set but the R2
+ * object is actually missing — callers detect that through <Image
+ * onError> and track it locally.
+ */
+export function isStaticallyBrokenPhoto(p: Photo): boolean {
+  if (p.storageKey) return false;
+  if (!p.uri) return true;
+  if (Platform.OS === 'web' && p.uri.startsWith('blob:')) return true;
+  return false;
+}
 
 const PHOTO_DIR =
   Platform.OS === 'web' ? '' : `${FileSystem.documentDirectory ?? ''}photos/`;

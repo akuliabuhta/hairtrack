@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Platform,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +15,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { usePhotos } from '@/contexts/data-context';
+import { isStaticallyBrokenPhoto } from '@/lib/photos';
 import { PHOTO_ZONE_META, type PhotoZone } from '@/lib/types';
 import { showAlert } from '@/lib/alert';
 
@@ -33,7 +34,15 @@ export default function PhotoDetail() {
   const palette = Colors[colorScheme];
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { photos, updatePhoto, deletePhoto, resolveUri } = usePhotos();
+  const {
+    photos,
+    updatePhoto,
+    deletePhoto,
+    resolveUri,
+    uploadingIds,
+    uploadFailedIds,
+    retryUpload,
+  } = usePhotos();
 
   const photo = useMemo(() => photos.find((p) => p.id === id), [photos, id]);
   const [zone, setZone] = useState<PhotoZone>(photo?.zone ?? 'other');
@@ -88,11 +97,10 @@ export default function PhotoDetail() {
       <ScrollView contentContainerStyle={{ paddingBottom: Spacing.xxl }}>
         {(() => {
           const uri = resolveUri(photo);
-          const staticallyBroken =
-            !photo.storageKey &&
-            (!photo.uri ||
-              (Platform.OS === 'web' && photo.uri.startsWith('blob:')));
-          const broken = staticallyBroken || imageLoadFailed;
+          const broken = isStaticallyBrokenPhoto(photo) || imageLoadFailed;
+          const uploading = !broken && uploadingIds.has(photo.id);
+          const uploadFailed =
+            !broken && !uploading && uploadFailedIds.has(photo.id);
           if (broken) {
             return (
               <View
@@ -116,12 +124,47 @@ export default function PhotoDetail() {
             );
           }
           return (
-            <Image
-              source={uri ? { uri } : undefined}
-              style={styles.image}
-              contentFit="cover"
-              onError={() => setImageLoadFailed(true)}
-            />
+            <View>
+              <Image
+                source={uri ? { uri } : undefined}
+                style={styles.image}
+                contentFit="cover"
+                onError={() => setImageLoadFailed(true)}
+              />
+              {uploading && (
+                <View style={styles.statusBanner}>
+                  <ActivityIndicator color={palette.accentText} />
+                  <Text style={[styles.statusText, { color: palette.accentText }]}>
+                    Загружается в облако…
+                  </Text>
+                </View>
+              )}
+              {uploadFailed && (
+                <View
+                  style={[
+                    styles.statusBanner,
+                    { backgroundColor: palette.warning },
+                  ]}>
+                  <MaterialCommunityIcons
+                    name="cloud-alert-outline"
+                    size={16}
+                    color={palette.accentText}
+                  />
+                  <Text style={[styles.statusText, { color: palette.accentText }]}>
+                    Не удалось загрузить
+                  </Text>
+                  <Pressable onPress={() => retryUpload(photo.id)} hitSlop={8}>
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: palette.accentText, textDecorationLine: 'underline' },
+                      ]}>
+                      Повторить
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
+            </View>
           );
         })()}
 
@@ -212,6 +255,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  statusBanner: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    left: 20,
+    right: 20,
+    justifyContent: 'center',
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   body: {
     padding: Spacing.lg,

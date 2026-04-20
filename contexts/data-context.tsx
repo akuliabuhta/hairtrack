@@ -55,6 +55,14 @@ type State = {
    * sign-in) without each one fetching its own URL.
    */
   photoUrls: Record<string, string>;
+  /**
+   * Ephemeral upload lifecycle tracking (not persisted). A photo id is in
+   * `uploadingIds` while a PUT is in flight, and in `uploadFailedIds`
+   * after the last attempt failed. Both clear once an attempt succeeds
+   * (i.e. storageKey is set).
+   */
+  uploadingIds: Set<string>;
+  uploadFailedIds: Set<string>;
 };
 
 type Actions = {
@@ -71,6 +79,12 @@ type Actions = {
   addPhoto: (input: Omit<Photo, 'id' | 'createdAt'>) => Promise<Photo>;
   updatePhoto: (id: string, patch: Partial<Photo>) => Promise<void>;
   deletePhoto: (id: string) => Promise<void>;
+  /**
+   * Retry an upload for a photo that has a local uri but no storageKey
+   * yet (usually because the first attempt failed). Safe to call on any
+   * id — it's a no-op if the photo is already uploaded or missing bytes.
+   */
+  retryUpload: (id: string) => Promise<void>;
 
   // Journal
   upsertJournal: (input: Omit<JournalEntry, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<JournalEntry>;
@@ -93,6 +107,8 @@ const initialState: State = {
   journal: [],
   profile: DEFAULT_PROFILE,
   photoUrls: {},
+  uploadingIds: new Set(),
+  uploadFailedIds: new Set(),
 };
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -172,6 +188,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         journal,
         profile,
         photoUrls: {},
+        uploadingIds: new Set(),
+        uploadFailedIds: new Set(),
       });
     })();
     return () => {
@@ -222,6 +240,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         photos: mergedPhotos,
         profile: mergedProfile,
         photoUrls: prev.photoUrls, // keep any URLs we've already resolved
+        uploadingIds: prev.uploadingIds,
+        uploadFailedIds: prev.uploadFailedIds,
       }));
 
       // Push local rows that the cloud doesn't yet know about.
@@ -344,16 +364,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         for (const p of pending) {
           if (cancelled) break;
           try {
-            const result = await uploadPhotoToCloud(p.id, p.uri);
-            if (cancelled || !result.ok) continue;
-            const updated: Photo = { ...p, storageKey: result.storageKey };
-            let nextList: Photo[] = [];
-            setState((prev) => {
-              nextList = prev.photos.map((x) => (x.id === p.id ? updated : x));
-              return { ...prev, photos: nextList };
-            });
-            await PhotosStore.save(nextList);
-            Cloud.pushPhoto(updated, userId);
+            await doPhotoUpload(p);
           } catch (err) {
             console.warn('[sync] photo retry failed', p.id, err);
           }
@@ -486,6 +497,55 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   // ---- Photos ----------------------------------------------------------
+  /**
+   * Run a single upload attempt for the given photo and reflect the
+   * lifecycle in state: mark uploading → PUT to R2 → either clear the
+   * flags and patch `storageKey`, or flip into `uploadFailedIds` so the
+   * UI can offer a retry. All flag mutations copy the Sets so React
+   * picks up the change.
+   */
+  const doPhotoUpload = useCallback(
+    async (photo: Photo): Promise<void> => {
+      if (!userId || !photo.uri) return;
+      setState((prev) => {
+        const nextUploading = new Set(prev.uploadingIds);
+        nextUploading.add(photo.id);
+        const nextFailed = new Set(prev.uploadFailedIds);
+        nextFailed.delete(photo.id);
+        return { ...prev, uploadingIds: nextUploading, uploadFailedIds: nextFailed };
+      });
+      const result = await uploadPhotoToCloud(photo.id, photo.uri);
+      if (result.ok) {
+        const updated: Photo = { ...photo, storageKey: result.storageKey };
+        let patched: Photo[] = [];
+        setState((prev) => {
+          patched = prev.photos.map((p) => (p.id === photo.id ? updated : p));
+          const nextUploading = new Set(prev.uploadingIds);
+          nextUploading.delete(photo.id);
+          const nextFailed = new Set(prev.uploadFailedIds);
+          nextFailed.delete(photo.id);
+          return {
+            ...prev,
+            photos: patched,
+            uploadingIds: nextUploading,
+            uploadFailedIds: nextFailed,
+          };
+        });
+        await PhotosStore.save(patched);
+        Cloud.pushPhoto(updated, userId);
+      } else {
+        setState((prev) => {
+          const nextUploading = new Set(prev.uploadingIds);
+          nextUploading.delete(photo.id);
+          const nextFailed = new Set(prev.uploadFailedIds);
+          nextFailed.add(photo.id);
+          return { ...prev, uploadingIds: nextUploading, uploadFailedIds: nextFailed };
+        });
+      }
+    },
+    [userId],
+  );
+
   const addPhoto = useCallback<Actions['addPhoto']>(
     async (input) => {
       const photo: Photo = {
@@ -504,24 +564,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       // the R2 upload finishes.
       if (userId) {
         Cloud.pushPhoto(photo, userId);
-        // Fire-and-forget R2 upload. On success we patch the photo
-        // record with `storageKey`, re-save locally, and re-push to
-        // Supabase so every device can now render the image from R2.
-        uploadPhotoToCloud(photo.id, photo.uri).then(async (result) => {
-          if (!result.ok) return;
-          const updated: Photo = { ...photo, storageKey: result.storageKey };
-          let patched: Photo[] = [];
-          setState((prev) => {
-            patched = prev.photos.map((p) => (p.id === photo.id ? updated : p));
-            return { ...prev, photos: patched };
-          });
-          await PhotosStore.save(patched);
-          Cloud.pushPhoto(updated, userId);
-        });
+        // Fire-and-forget R2 upload via the shared helper.
+        doPhotoUpload(photo);
       }
       return photo;
     },
-    [userId],
+    [userId, doPhotoUpload],
+  );
+
+  const retryUpload = useCallback<Actions['retryUpload']>(
+    async (id) => {
+      let photo: Photo | undefined;
+      // Snapshot the latest photo from state without triggering a render.
+      setState((prev) => {
+        photo = prev.photos.find((p) => p.id === id);
+        return prev;
+      });
+      if (!photo || photo.storageKey) return;
+      await doPhotoUpload(photo);
+    },
+    [doPhotoUpload],
   );
 
   const updatePhoto = useCallback<Actions['updatePhoto']>(
@@ -649,6 +711,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addPhoto,
       updatePhoto,
       deletePhoto,
+      retryUpload,
       upsertJournal,
       deleteJournal,
       updateProfile,
@@ -664,6 +727,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addPhoto,
       updatePhoto,
       deletePhoto,
+      retryUpload,
       upsertJournal,
       deleteJournal,
       updateProfile,
@@ -701,7 +765,16 @@ export function useProcedureLogs(day: DayKey = dayKey()) {
 }
 
 export function usePhotos() {
-  const { photos, photoUrls, addPhoto, updatePhoto, deletePhoto } = useData();
+  const {
+    photos,
+    photoUrls,
+    addPhoto,
+    updatePhoto,
+    deletePhoto,
+    retryUpload,
+    uploadingIds,
+    uploadFailedIds,
+  } = useData();
   /**
    * Return the best URI we have for a photo right now.
    *  - Cloud signed URL wins when we have a storageKey and the signed URL
@@ -726,7 +799,17 @@ export function usePhotos() {
     }
     return null;
   };
-  return { photos, addPhoto, updatePhoto, deletePhoto, photoUrls, resolveUri };
+  return {
+    photos,
+    addPhoto,
+    updatePhoto,
+    deletePhoto,
+    photoUrls,
+    resolveUri,
+    retryUpload,
+    uploadingIds,
+    uploadFailedIds,
+  };
 }
 
 export function useJournal() {
