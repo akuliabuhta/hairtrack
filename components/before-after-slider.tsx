@@ -6,7 +6,7 @@
  * so it works everywhere including web.
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   PanResponder,
   StyleSheet,
@@ -42,11 +42,17 @@ export function BeforeAfterSlider({
   const [width, setWidth] = useState(0);
   const positionRef = useRef(0.5);
   const [position, setPosition] = useState(0.5);
+  // Flips true the first time the user grabs the handle; we use it to
+  // stop the intro animation so we don't fight their input.
+  const userTouchedRef = useRef(false);
 
   const responder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        userTouchedRef.current = true;
+      },
       onPanResponderMove: (_evt, gesture) => {
         if (width === 0) return;
         const next = Math.min(
@@ -68,6 +74,27 @@ export function BeforeAfterSlider({
   positionRef.current = position;
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
+
+  // Intro animation: once the layout settles, sweep the handle left →
+  // right → back to centre so the user immediately sees this thing is
+  // draggable. Aborts if the user touches the handle mid-sweep.
+  useEffect(() => {
+    if (width === 0 || userTouchedRef.current) return;
+    let raf = 0;
+    const DURATION_MS = 2600;
+    const startAt = Date.now();
+    const tick = () => {
+      if (userTouchedRef.current) return;
+      const t = Math.min(1, (Date.now() - startAt) / DURATION_MS);
+      // One full sine cycle: 0.5 → 0.1 → 0.9 → 0.5.
+      const eased = 0.5 + Math.sin(t * Math.PI * 2) * 0.4;
+      setPosition(eased);
+      positionRef.current = eased;
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [width]);
 
   return (
     <View style={styles.wrap} onLayout={onLayout}>
