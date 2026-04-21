@@ -9,6 +9,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   PanResponder,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -75,6 +76,25 @@ export function BeforeAfterSlider({
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
+  /**
+   * Web-only: follow the cursor. A mouse move anywhere inside the
+   * slider (without needing to press a button) jumps the handle to
+   * that x. Native stays on the PanResponder touch-drag since mobile
+   * has no hover concept.
+   */
+  const onPointerMove =
+    Platform.OS === 'web'
+      ? (e: { nativeEvent: { offsetX?: number } }) => {
+          if (width === 0) return;
+          const x = e.nativeEvent?.offsetX;
+          if (typeof x !== 'number') return;
+          userTouchedRef.current = true;
+          const next = Math.min(1, Math.max(0, x / width));
+          positionRef.current = next;
+          setPosition(next);
+        }
+      : undefined;
+
   // Intro animation: once the layout settles, sweep the handle left →
   // right → back to centre so the user immediately sees this thing is
   // draggable. Aborts if the user touches the handle mid-sweep.
@@ -97,7 +117,10 @@ export function BeforeAfterSlider({
   }, [width]);
 
   return (
-    <View style={styles.wrap} onLayout={onLayout}>
+    <View
+      style={styles.wrap}
+      onLayout={onLayout}
+      onPointerMove={onPointerMove}>
       {/* After (bottom) */}
       <Image
         source={{ uri: afterUri }}
