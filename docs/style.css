@@ -1,0 +1,175 @@
+/* HairTrack landing — vanilla CSS, brand-aligned with the app. */
+
+:root {
+  --brand-purple: #7C2DB2;
+  --brand-purple-soft: #F3E8FF;
+  --brand-orange: #F97316;
+  --brand-text-dark: #2D1B4E;
+  --brand-text-muted: #6B6284;
+  --bg: #FAF9FC;
+  --surface: #F3F0F7;
+  --surface-elevated: #FFFFFF;
+  --border: #E5E1EC;
+  --gradient: linear-gradient(135deg, #F97316 0%, #9D3FCB 60%, #7C2DB2 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-text-dark: #F5F3F7;
+    --brand-text-muted: #B5AEC7;
+    --bg: #1A0F2E;
+    --surface: #251838;
+    --surface-elevated: #2E1F46;
+    --border: #352548;
+    --brand-purple: #9D5BD1;
+    --brand-purple-soft: #3B1361;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--brand-text-dark);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--brand-purple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 24px 96px;
+}
+
+/* ---- Header ---- */
+header.site {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0 32px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+header.site img {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+}
+header.site .brand {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+header.site nav {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ---- Hero ---- */
+.hero {
+  text-align: center;
+  padding: 48px 0 32px;
+}
+.hero .mark {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 24px;
+  border-radius: 24px;
+}
+.hero h1 {
+  font-size: 38px;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: 12px;
+  background: var(--gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero p.lead {
+  font-size: 18px;
+  color: var(--brand-text-muted);
+  max-width: 480px;
+  margin: 0 auto 24px;
+}
+.badge {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--brand-purple-soft);
+  color: var(--brand-purple);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- Sections ---- */
+section {
+  margin-top: 48px;
+}
+h2 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  letter-spacing: -0.3px;
+}
+h3 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 24px 0 8px;
+}
+p { margin-bottom: 12px; }
+ul { margin: 8px 0 16px 22px; }
+li { margin-bottom: 6px; }
+strong { font-weight: 700; }
+
+.card {
+  background: var(--surface);
+  padding: 20px 22px;
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.feature-grid .card h3 { margin-top: 0; }
+.feature-grid .card p { color: var(--brand-text-muted); font-size: 14px; margin-bottom: 0; }
+
+.support-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+.support-row strong { font-size: 15px; }
+.support-row a { font-weight: 600; }
+
+footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--brand-text-muted);
+  text-align: center;
+}
+footer a { color: var(--brand-text-muted); }
+
+.meta {
+  font-size: 13px;
+  color: var(--brand-text-muted);
+  margin-bottom: 28px;
+}
