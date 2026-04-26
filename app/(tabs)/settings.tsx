@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  Linking,
   Pressable,
   ScrollView,
   Share,
@@ -101,6 +102,17 @@ export default function SettingsScreen() {
     );
   };
 
+  const openMail = (
+    address: string,
+    subject: string,
+    failureMessage: string,
+  ) => {
+    const url = `mailto:${address}?subject=${encodeURIComponent(subject)}`;
+    Linking.openURL(url).catch(() => {
+      showAlert('Не удалось открыть почту', `${failureMessage}\n\n${address}`);
+    });
+  };
+
   const ROWS: Row[] = [
     {
       id: 'export',
@@ -110,17 +122,49 @@ export default function SettingsScreen() {
     {
       id: 'feature',
       label: 'Запросить функцию',
-      onPress: () => showAlert('Запросить функцию', 'Напишите нам: feedback@hairtrack.app'),
+      onPress: () =>
+        openMail(
+          'feedback@hairtrack.app',
+          'HairTrack — запрос функции',
+          'Напишите на feedback@hairtrack.app — расскажите, чего не хватает.',
+        ),
     },
     {
       id: 'bug',
       label: 'Сообщить об ошибке',
-      onPress: () => showAlert('Сообщить об ошибке', 'Напишите нам: bugs@hairtrack.app'),
+      onPress: () =>
+        openMail(
+          'bugs@hairtrack.app',
+          'HairTrack — баг',
+          'Напишите на bugs@hairtrack.app — опишите, что произошло, и приложите скриншот, если есть.',
+        ),
     },
-    { id: 'rate', label: 'Оценить это приложение', onPress: () => showAlert('Спасибо!', 'Оценка появится в финальном релизе.') },
-    { id: 'terms', label: 'Условия использования', onPress: () => showAlert('Условия использования', 'Будут опубликованы перед релизом.') },
-    { id: 'privacy', label: 'Политика конфиденциальности', onPress: () => showAlert('Политика конфиденциальности', 'Все данные хранятся локально на вашем устройстве. Облачная синхронизация — опционально.') },
-    { id: 'contact', label: 'Связаться с нами', onPress: () => showAlert('Связаться с нами', 'support@hairtrack.app') },
+    {
+      id: 'rate',
+      label: 'Оценить это приложение',
+      onPress: () =>
+        showAlert('Спасибо!', 'Оценка появится в финальном релизе.'),
+    },
+    {
+      id: 'terms',
+      label: 'Условия использования',
+      onPress: () => router.push('/terms'),
+    },
+    {
+      id: 'privacy',
+      label: 'Политика конфиденциальности',
+      onPress: () => router.push('/privacy'),
+    },
+    {
+      id: 'contact',
+      label: 'Связаться с нами',
+      onPress: () =>
+        openMail(
+          'support@hairtrack.app',
+          'HairTrack — вопрос',
+          'Напишите на support@hairtrack.app — отвечаем в течение 5 рабочих дней.',
+        ),
+    },
   ];
 
   return (
