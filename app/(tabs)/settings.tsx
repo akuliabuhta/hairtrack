@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useProfile, usePhotos } from '@/contexts/data-context';
 import { exportAll } from '@/lib/storage';
 import { showAlert } from '@/lib/alert';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 import { isStaticallyBrokenPhoto } from '@/lib/photos';
 
 type Row = {
@@ -124,9 +125,9 @@ export default function SettingsScreen() {
       label: 'Запросить функцию',
       onPress: () =>
         openMail(
-          'feedback@hairtrack.app',
+          SUPPORT_EMAIL,
           'HairTrack — запрос функции',
-          'Напишите на feedback@hairtrack.app — расскажите, чего не хватает.',
+          `Напишите на ${SUPPORT_EMAIL} — расскажите, чего не хватает.`,
         ),
     },
     {
@@ -134,9 +135,9 @@ export default function SettingsScreen() {
       label: 'Сообщить об ошибке',
       onPress: () =>
         openMail(
-          'bugs@hairtrack.app',
+          SUPPORT_EMAIL,
           'HairTrack — баг',
-          'Напишите на bugs@hairtrack.app — опишите, что произошло, и приложите скриншот, если есть.',
+          `Напишите на ${SUPPORT_EMAIL} — опишите, что произошло, и приложите скриншот, если есть.`,
         ),
     },
     {
@@ -160,9 +161,9 @@ export default function SettingsScreen() {
       label: 'Связаться с нами',
       onPress: () =>
         openMail(
-          'support@hairtrack.app',
+          SUPPORT_EMAIL,
           'HairTrack — вопрос',
-          'Напишите на support@hairtrack.app — отвечаем в течение 5 рабочих дней.',
+          `Напишите на ${SUPPORT_EMAIL} — отвечаем в течение 5 рабочих дней.`,
         ),
     },
   ];

@@ -5,8 +5,8 @@ import { Stack } from 'expo-router';
 
 import { Colors, Radius, Spacing } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 
-const SUPPORT_EMAIL = 'support@hairtrack.app';
 const LAST_UPDATED = '2026-04-21';
 
 export default function TermsScreen() {
