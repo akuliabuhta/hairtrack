@@ -30,12 +30,12 @@
    - Save
 
 3. Через 30–60 секунд получишь URL вида
-   `https://<твой-логин>.github.io/hairtrack/`
+   `https://akuliabuhta.github.io/hairtrack/`
 
 4. Проверь, что открываются:
-   - `https://<логин>.github.io/hairtrack/`
-   - `https://<логин>.github.io/hairtrack/privacy.html`
-   - `https://<логин>.github.io/hairtrack/terms.html`
+   - `https://akuliabuhta.github.io/hairtrack/`
+   - `https://akuliabuhta.github.io/hairtrack/privacy.html`
+   - `https://akuliabuhta.github.io/hairtrack/terms.html`
 
 ---
 
@@ -43,10 +43,10 @@
 
 После деплоя вписать в App Store Connect → **App Information**:
 
-- **Privacy Policy URL:** `https://<логин>.github.io/hairtrack/privacy.html`
-- **Support URL:** `https://<логин>.github.io/hairtrack/`
+- **Privacy Policy URL:** `https://akuliabuhta.github.io/hairtrack/privacy.html`
+- **Support URL:** `https://akuliabuhta.github.io/hairtrack/`
 - **Marketing URL:** *(опционально, можно тот же)*
-  `https://<логин>.github.io/hairtrack/`
+  `https://akuliabuhta.github.io/hairtrack/`
 
 ---
 
